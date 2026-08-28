@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>T0绩效监控 · 卡方 × 皓兴</title>
+<style>
+  :root {
+    --bg: #f5f7fa; --card: #ffffff; --border: #e5e9f0;
+    --text: #1f2937; --muted: #6b7280;
+    --primary: #2563eb; --primary-light: #eff4ff;
+    --up: #d93025; --down: #188038; --neutral: #6b7280;
+    --red: #dc2626; --yellow: #d97706; --green: #059669;
+    --radius: 12px;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: -apple-system, "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif; background: var(--bg); color: var(--text); min-height: 100vh; }
+  .container { max-width: 920px; margin: 0 auto; padding: 24px 20px 64px; }
+
+  header { text-align: center; margin-bottom: 18px; }
+  header h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
+  header .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
+
+  /* Tabs */
+  .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; }
+  .tab-btn { border: 1px solid var(--border); background: var(--card); color: var(--muted); border-radius: 999px; padding: 9px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; }
+  .tab-btn:hover { border-color: var(--primary); color: var(--primary); }
+  .tab-btn.active { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .tab-pane { display: none; }
+  .tab-pane.active { display: block; animation: fadein .25s ease; }
+  @keyframes fadein { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; } }
+
+  /* 搜索 */
+  .search-wrap { position: relative; max-width: 560px; margin: 0 auto; }
+  .search-box { display: flex; align-items: center; gap: 10px; background: var(--card); border: 1px solid var(--border); border-radius: 999px; padding: 12px 20px; box-shadow: 0 2px 8px rgba(31,41,55,.06); transition: border-color .15s, box-shadow .15s; }
+  .search-box:focus-within { border-color: var(--primary); box-shadow: 0 0 0 3px rgba(37,99,235,.12); }
+  .search-box svg { flex: none; color: var(--muted); }
+  .search-box input { flex: 1; border: none; outline: none; font-size: 15px; background: transparent; color: var(--text); }
+  .search-box input::placeholder { color: #9ca3af; }
+  .search-box .clear { flex: none; border: none; background: none; cursor: pointer; color: #9ca3af; font-size: 16px; padding: 2px 6px; border-radius: 50%; }
+  .search-box .clear:hover { color: var(--text); background: var(--bg); }
+  .dropdown { position: absolute; top: calc(100% + 6px); left: 0; right: 0; background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: 0 8px 24px rgba(31,41,55,.10); overflow: hidden; z-index: 20; max-height: 320px; overflow-y: auto; display: none; }
+  .dropdown.show { display: block; }
+  .dd-item { display: flex; align-items: center; gap: 10px; padding: 10px 16px; cursor: pointer; }
+  .dd-item:hover, .dd-item.active { background: var(--primary-light); }
+  .dd-item .code { font-family: Consolas, Menlo, monospace; font-size: 13px; color: var(--primary); min-width: 90px; }
+  .dd-item .name { font-size: 14px; }
+  .dd-item .src { margin-left: auto; font-size: 11px; color: var(--muted); }
+  .dd-empty { padding: 14px 16px; color: var(--muted); font-size: 13px; text-align: center; }
+
+  .chips { display: flex; justify-content: center; flex-wrap: wrap; gap: 8px; margin-top: 14px; }
+  .chip { border: 1px solid var(--border); background: var(--card); color: var(--text); border-radius: 999px; padding: 5px 14px; font-size: 13px; cursor: pointer; transition: all .15s; }
+  .chip:hover { border-color: var(--primary); color: var(--primary); }
+
+  .result { margin-top: 24px; display: none; }
+  .result.show { display: block; animation: fadein .25s ease; }
+  .stock-head { background: linear-gradient(135deg, #1e3a8a, #2563eb); color: #fff; border-radius: var(--radius); padding: 18px 22px; display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+  .stock-head .name { font-size: 22px; font-weight: 700; }
+  .stock-head .code { font-family: Consolas, Menlo, monospace; font-size: 14px; opacity: .85; background: rgba(255,255,255,.14); padding: 4px 10px; border-radius: 8px; }
+  .stock-head .dates { margin-left: auto; font-size: 12px; opacity: .85; text-align: right; line-height: 1.7; }
+
+  .vendors { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 16px; }
+  @media (max-width: 680px) { .vendors { grid-template-columns: 1fr; } }
+  .vcard { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .vcard .vhead { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 15px; }
+  .vcard .vhead .tag { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+  .tag-kf { background: #ede7ff; color: #6d28d9; }
+  .tag-hx { background: #e0f2fe; color: #0369a1; }
+  .vbody { padding: 6px 18px 14px; }
+  .metric { padding: 10px 0; border-bottom: 1px dashed var(--border); }
+  .metric:last-child { border-bottom: none; }
+  .metric .mlabel { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
+  .metric .mval { font-size: 17px; font-weight: 700; font-family: Consolas, Menlo, monospace; }
+  .up { color: var(--up); } .down { color: var(--down); } .flat { color: var(--neutral); }
+  .bar-track { height: 6px; background: #eef1f6; border-radius: 3px; margin-top: 6px; overflow: hidden; }
+  .bar-fill { height: 100%; border-radius: 3px; }
+  .bar-fill.pos { background: linear-gradient(90deg, #f87171, #ef4444); }
+  .bar-fill.neg { background: linear-gradient(90deg, #34d399, #10b981); }
+  .no-data { padding: 40px 18px; text-align: center; color: var(--muted); font-size: 13px; }
+
+  .chart-card { margin-top: 16px; }
+  .chart-legend { display: flex; align-items: center; gap: 16px; margin-left: auto; font-size: 12px; color: var(--text); font-weight: 500; flex-wrap: wrap; }
+  .chart-legend .ln { display: inline-flex; align-items: center; gap: 5px; }
+  .chart-legend .sw { width: 18px; height: 3px; border-radius: 2px; display: inline-block; }
+  .chart-body { position: relative; padding: 6px 8px 2px; }
+  .chart-body svg { display: block; width: 100%; height: auto; }
+  .chart-tip { position: absolute; pointer-events: none; background: rgba(17,24,39,.92); color: #fff; border-radius: 8px; padding: 8px 10px; font-size: 12px; line-height: 1.6; white-space: nowrap; display: none; z-index: 10; box-shadow: 0 4px 12px rgba(0,0,0,.18); }
+  .chart-tip b { font-family: Consolas, Menlo, monospace; }
+  .chart-tip .kf { color: #c4b5fd; } .chart-tip .hx { color: #7dd3fc; }
+  .chart-meta { display: flex; justify-content: space-between; font-size: 11px; color: var(--muted); padding: 2px 10px 10px; flex-wrap: wrap; gap: 4px; }
+
+  /* 监控页 */
+  .monitor-head { text-align: center; margin-bottom: 16px; }
+  .monitor-head h2 { font-size: 18px; font-weight: 700; }
+  .monitor-head .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
+  .ov-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
+  @media (max-width: 680px) { .ov-card { grid-template-columns: repeat(2, 1fr); } }
+  .ov { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
+  .ov .num { font-size: 22px; font-weight: 800; font-family: Consolas, Menlo, monospace; }
+  .ov .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
+  .ov .num.red { color: var(--red); } .ov .num.yellow { color: var(--yellow); } .ov .num.green { color: var(--green); } .ov .num.blue { color: var(--primary); }
+
+  .seg { display: flex; gap: 8px; justify-content: center; margin: 14px 0; flex-wrap: wrap; }
+  .seg-btn { border: 1px solid var(--border); background: var(--card); color: var(--muted); border-radius: 8px; padding: 6px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
+  .seg-btn.active { background: #1e3a8a; border-color: #1e3a8a; color: #fff; }
+  .seg-btn:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
+
+  .alert-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .12s; }
+  .alert-row:hover { background: var(--primary-light); }
+  .alert-row:last-child { border-bottom: none; }
+  .light { width: 12px; height: 12px; border-radius: 50%; flex: none; }
+  .light.red { background: var(--red); box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
+  .light.yellow { background: var(--yellow); box-shadow: 0 0 0 3px rgba(217,119,6,.15); }
+  .alert-row .a-name { font-weight: 600; font-size: 14px; min-width: 90px; }
+  .alert-row .a-code { font-family: Consolas, Menlo, monospace; font-size: 12px; color: var(--primary); min-width: 80px; }
+  .alert-row .a-tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600; }
+  .alert-row .a-msg { font-size: 12px; color: var(--muted); flex: 1; }
+  .alert-row .a-val { font-family: Consolas, Menlo, monospace; font-size: 13px; font-weight: 700; }
+
+  .attr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  @media (max-width: 680px) { .attr-grid { grid-template-columns: 1fr; } }
+  .attr-item { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 12px 14px; }
+  .attr-item .al { font-size: 12px; color: var(--muted); }
+  .attr-item .av { font-size: 15px; font-weight: 700; margin-top: 4px; font-family: Consolas, Menlo, monospace; }
+  .attr-note { margin-top: 10px; font-size: 12px; color: var(--muted); line-height: 1.7; background: #fffbeb; border: 1px solid #fde68a; border-radius: 10px; padding: 10px 14px; }
+  .attr-note.good { background: #ecfdf5; border-color: #a7f3d0; }
+  .attr-note.bad { background: #fef2f2; border-color: #fecaca; }
+
+  footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; line-height: 1.8; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>📊 T0绩效监控</h1>
+    <div class="sub">卡方 vs 皓兴 算法回测数据 · 数据日期：卡方 <b id="dateKf">-</b> / 皓兴 <b id="dateHx">-</b></div>
+  </header>
+
+  <nav class="tabs">
+    <button class="tab-btn active" data-tab="query">🔍 算法对比查询</button>
+    <button class="tab-btn" data-tab="monitor">📈 内部数据跟踪</button>
+  </nav>
+
+  <!-- ============ Tab1 算法对比查询 ============ -->
+  <section id="tab-query" class="tab-pane active">
+    <div class="search-wrap">
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="searchInput" type="text" placeholder="输入股票代码或名称，如 000001 / 平安银行 / 301520" autocomplete="off">
+        <button class="clear" id="clearBtn" style="display:none">✕</button>
+      </div>
+      <div class="dropdown" id="dropdown"></div>
+    </div>
+    <div class="chips" id="chips"></div>
+    <div class="result" id="result"></div>
+  </section>
+
+  <!-- ============ Tab2 内部数据跟踪 ============ -->
+  <section id="tab-monitor" class="tab-pane">
+    <div class="monitor-head">
+      <h2>算法健康度监控</h2>
+      <div class="sub">双算法趋势 / 红黄灯异常告警 / 归因分析（基于近一个月日频数据）</div>
+    </div>
+
+    <!-- 全市场概览 -->
+    <div class="ov-card">
+      <div class="ov"><div class="num blue" id="ovStocks">-</div><div class="lbl">监控标的数</div></div>
+      <div class="ov"><div class="num red" id="ovRed">-</div><div class="lbl">红灯告警</div></div>
+      <div class="ov"><div class="num yellow" id="ovYellow">-</div><div class="lbl">黄灯告警</div></div>
+      <div class="ov"><div class="num" id="ovAvg" style="font-size:16px">-</div><div class="lbl">最新日均收益（卡方 / 皓兴）</div></div>
+    </div>
+
+    <!-- 监控股票选择 -->
+    <div class="search-wrap" style="max-width:560px">
+      <div class="search-box">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
+        <input id="monInput" type="text" placeholder="选择标的查看趋势 / 告警 / 归因，如 平安银行" autocomplete="off">
+        <button class="clear" id="monClear" style="display:none">✕</button>
+      </div>
+      <div class="dropdown" id="monDropdown"></div>
+    </div>
+
+    <!-- 个股监控面板 -->
+    <div class="result" id="monResult"></div>
+
+    <!-- 全市场告警列表 -->
+    <div class="vcard" style="margin-top:18px">
+      <div class="vhead">
+        🚨 异常告警（全市场）
+        <span class="chart-legend">
+          <span class="seg-btn" data-f="all" style="margin:0;padding:3px 12px">全部</span>
+          <span class="seg-btn" data-f="kf" style="margin:0;padding:3px 12px">卡方</span>
+          <span class="seg-btn" data-f="hx" style="margin:0;padding:3px 12px">皓兴</span>
+        </span>
+      </div>
+      <div style="padding:8px 18px 0;font-size:12px;color:var(--muted)">数据日期：卡方 <b id="metaKfDate">-</b> / 皓兴 <b id="metaHxDate">-</b>（各算法商以其最新有数据日扫描）</div>
+      <div id="alertList"><div class="no-data">正在计算告警…</div></div>
+    </div>
+  </section>
+
+  <footer>
+    数据来源：卡方（飞书文件夹 kf_日内回转plus_performance） · 皓兴（data.haoxingtrade.com HX_singleStockPnlSummary_CN）· 指数（新浪）<br>
+    表中数据仅供参考，不同算法商指标口径不同，请勿直接横向对比数值量级
+  </footer>
+</div>
+
+<script src="data.js"></script>
+<script src="history.js"></script>
+<script src="benchmark.js"></script>
+<script src="industry.js"></script>
+<script>
+const DATA = window.T0_DATA;
+const stocks = DATA.stocks || {};
+const HIST = window.T0_HISTORY || null;
+const BENCH = window.T0_BENCHMARK || null;
+const IND = window.T0_INDUSTRY || null;
+
+// ---------- 工具 ----------
+function parsePct(s) { if (s == null) return null; const v = parseFloat(String(s).replace(/[%\s]/g, '')); return isNaN(v) ? null : v; }
+function cls(v) { if (v == null) return 'flat'; return v > 0.000001 ? 'up' : (v < -0.000001 ? 'down' : 'flat'); }
+function fmtPct(s) { const v = parsePct(s); if (v == null) return String(s ?? '—'); return (v > 0 ? '+' : '') + String(s).trim(); }
+function fmtN(v, d = 2) { if (v == null || isNaN(v)) return '—'; return (v > 0 ? '+' : '') + v.toFixed(d) + '%'; }
+function esc(s) { return String(s).replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+function cumulative(arr) { let f = 1; return arr.map(r => { const v = (r == null) ? 0 : r; f *= (1 + v / 100); return (f - 1) * 100; }); }
+function rollingMean(arr, win) { return arr.map((_, i) => { let s = 0, n = 0; for (let j = Math.max(0, i - win + 1); j <= i; j++) { if (arr[j] != null) { s += arr[j]; n++; } } return n ? s / n : null; }); }
+
+// ---------- 搜索(通用) ----------
+function makeSearch(inputId, ddId, onPick, filterSrc) {
+  const input = document.getElementById(inputId);
+  const dd = document.getElementById(ddId);
+  let activeIdx = -1, cands = [];
+  const src = filterSrc || stocks;
+  function render() {
+    const q = input.value.trim().toLowerCase();
+    cands = q ? [] : [];
+    if (q) { for (const [code, s] of Object.entries(src)) { if (code.toLowerCase().includes(q) || (s.name && s.name.toLowerCase().includes(q))) { cands.push([code, s]); if (cands.length >= 30) break; } } }
+    if (!q || !cands.length) { dd.classList.remove('show'); return; }
+    dd.innerHTML = cands.map(([code, s], i) => {
+      const tags = [];
+      if (s.kafang && Object.keys(s.kafang).length) tags.push('卡方');
+      if (s.haoxing && Object.keys(s.haoxing).length) tags.push('皓兴');
+      return `<div class="dd-item ${i === activeIdx ? 'active' : ''}" data-i="${i}"><span class="code">${esc(code)}</span><span class="name">${esc(s.name || '')}</span><span class="src">${tags.join(' / ') || '无数据'}</span></div>`;
+    }).join('');
+    dd.classList.add('show');
+  }
+  input.addEventListener('input', () => { activeIdx = -1; render(); });
+  input.addEventListener('keydown', e => {
+    if (!dd.classList.contains('show')) return;
+    if (e.key === 'ArrowDown') { activeIdx = Math.min(activeIdx + 1, cands.length - 1); render(); e.preventDefault(); }
+    else if (e.key === 'ArrowUp') { activeIdx = Math.max(activeIdx - 1, 0); render(); e.preventDefault(); }
+    else if (e.key === 'Enter') { if (activeIdx >= 0) pick(activeIdx); }
+    else if (e.key === 'Escape') { dd.classList.remove('show'); }
+  });
+  dd.addEventListener('mousedown', e => { const it = e.target.closest('.dd-item'); if (it) pick(+it.dataset.i); });
+  document.addEventListener('click', e => { if (!e.target.closest('.search-wrap')) dd.classList.remove('show'); });
+  function pick(i) { const [code] = cands[i]; onPick(code); input.value = ''; dd.classList.remove('show'); activeIdx = -1; }
+  return { input };
+}
+
+// ---------- 通用折线图 ----------
+function renderChart(svgEl, tipEl, opts) {
+  // opts: {dates, series:[{name,color,data}], yFmt, height}
+  const H = opts.height || 260, W = 680, L = 52, R = 20, T = 18, B = 30;
+  const iw = W - L - R, ih = H - T - B;
+  const n = opts.dates.length;
+  const flat = [].concat(...opts.series.map(s => s.data)).filter(v => v != null);
+  let ymin = Math.min(...flat), ymax = Math.max(...flat);
+  if (!isFinite(ymin)) { ymin = -1; ymax = 1; }
+  if (ymax - ymin < 0.5) { const c = (ymax + ymin) / 2; ymin = c - 0.25; ymax = c + 0.25; }
+  const pad = (ymax - ymin) * 0.12; ymin -= pad; ymax += pad;
+  const X = i => L + (n === 1 ? iw / 2 : i * iw / (n - 1));
+  const Y = v => T + ih - (v - ymin) / (ymax - ymin) * ih;
+
+  let grid = '';
+  const ySteps = 5;
+  for (let k = 0; k <= ySteps; k++) {
+    const v = ymin + (ymax - ymin) * k / ySteps, y = Y(v);
+    grid += `<line x1="${L}" y1="${y}" x2="${L + iw}" y2="${y}" stroke="#eef1f6"/>`;
+    grid += `<text x="${L - 7}" y="${y + 4}" text-anchor="end" font-size="11" fill="#9ca3af">${opts.yFmt ? opts.yFmt(v) : v.toFixed(1)}</text>`;
+  }
+  const xStep = Math.max(1, Math.ceil(n / 6));
+  let xl = '';
+  for (let i = 0; i < n; i += xStep) { const x = X(i); xl += `<text x="${x}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#9ca3af">${opts.dates[i].slice(4, 6)}-${opts.dates[i].slice(6)}</text>`; }
+  xl += `<text x="${X(n - 1)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#9ca3af">${opts.dates[n - 1].slice(4, 6)}-${opts.dates[n - 1].slice(6)}</text>`;
+  let zeroline = '';
+  if (ymin < 0 && ymax > 0) { const y0 = Y(0); zeroline = `<line x1="${L}" y1="${y0}" x2="${L + iw}" y2="${y0}" stroke="#cbd5e1" stroke-dasharray="4 4"/>`; }
+  let lines = '', ends = '';
+  opts.series.forEach(s => {
+    const pts = s.data.map((v, i) => (v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`)).filter(Boolean).join(' ');
+    if (pts) {
+      lines += `<polyline points="${pts}" fill="none" stroke="${s.color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>`;
+      const last = s.data[n - 1];
+      if (last != null) ends += `<text x="${X(n - 1) + 6}" y="${Y(last) + 4}" font-size="12" font-weight="700" fill="${s.color}">${opts.yFmt ? opts.yFmt(last) : last.toFixed(2)}</text>`;
+    }
+  });
+  svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
+  svgEl.innerHTML = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="transparent"/>${grid}${zeroline}${xl}${lines}${ends}`;
+  // hover
+  const rect = svgEl.getBoundingClientRect();
+  const ratio = rect.width / W;
+  svgEl.onmousemove = ev => {
+    const xPx = (ev.clientX - rect.left) / ratio;
+    if (xPx < L || xPx > W - R) { tipEl.style.display = 'none'; return; }
+    const i = Math.round((xPx - L) / iw * (n - 1));
+    let html = `<b>${opts.dates[i]}</b><br>`;
+    opts.series.forEach((s, si) => {
+      const v = s.data[i];
+      html += `<span class="${si === 0 ? 'kf' : 'hx'}">${esc(s.name)}</span> <b>${v == null ? '—' : (opts.yFmt ? opts.yFmt(v) : v.toFixed(2))}</b><br>`;
+    });
+    tipEl.innerHTML = html;
+    tipEl.style.display = 'block';
+    const tx = xPx * ratio + 14;
+    tipEl.style.left = (tx > rect.width - 230 ? xPx * ratio - 210 : tx) + 'px';
+    tipEl.style.top = '6px';
+  };
+  svgEl.onmouseleave = () => { tipEl.style.display = 'none'; };
+}
+
+// ================= Tab1 算法对比查询 =================
+function compareRows(s) {
+  const commons = [['20日收益率', '20日收益率'], ['当日收益率', '当日收益率']];
+  let rows = '';
+  for (const [kfL, hxL] of commons) {
+    const kv = parsePct(s.kafang?.[kfL]), hv = parsePct(s.haoxing?.[hxL]);
+    if (kv == null && hv == null) continue;
+    const maxAbs = Math.max(Math.abs(kv || 0), Math.abs(hv || 0));
+    rows += `<div class="metric"><div class="mlabel">${esc(kfL)} · 两家对比</div><div style="display:flex;gap:16px;margin-top:6px">
+      <div style="flex:1"><div style="font-size:12px;color:var(--muted);margin-bottom:2px">卡方 <b class="${cls(kv)}" style="font-size:15px">${kv == null ? '—' : fmtPct(s.kafang[kfL])}</b></div>${kv == null ? '' : `<div class="bar-track"><div class="bar-fill ${cls(kv) === 'up' ? 'pos' : cls(kv) === 'down' ? 'neg' : 'neu'}" style="width:${Math.max(4, Math.abs(kv) / maxAbs * 100)}%"></div></div>`}</div>
+      <div style="flex:1"><div style="font-size:12px;color:var(--muted);margin-bottom:2px">皓兴 <b class="${cls(hv)}" style="font-size:15px">${hv == null ? '—' : fmtPct(s.haoxing[hxL])}</b></div>${hv == null ? '' : `<div class="bar-track"><div class="bar-fill ${cls(hv) === 'up' ? 'pos' : cls(hv) === 'down' ? 'neg' : 'neu'}" style="width:${Math.max(4, Math.abs(hv) / maxAbs * 100)}%"></div></div>`}</div>
+    </div></div>`;
+  }
+  return rows;
+}
+const KF_METRICS = [['20日收益率', 'kafang'], ['年化收益率', 'kafang'], ['当日收益率', 'kafang'], ['20日开仓率', 'kafang'], ['周期开仓率', 'kafang']];
+const HX_METRICS = [['20日收益率', 'haoxing'], ['年初以来收益率', 'haoxing'], ['当日收益率', 'haoxing'], ['开仓胜率', 'haoxing'], ['近20日开仓天数', 'haoxing']];
+function metricBlock(entry, vendor) {
+  if (!entry || !Object.keys(entry).length) return `<div class="no-data">该算法商暂无此股票的回测数据</div>`;
+  const metrics = vendor === 'kafang' ? KF_METRICS : HX_METRICS;
+  return metrics.map(([label]) => {
+    const raw = entry[label], v = parsePct(raw);
+    return `<div class="metric"><div class="mlabel">${esc(label)}</div><div class="mval ${v == null ? 'flat' : cls(v)}">${v == null ? esc(raw ?? '—') : fmtPct(raw)}</div></div>`;
+  }).join('');
+}
+
+// 历史累计收益图(Tab1)
+function histBlock(code) {
+  if (!HIST || !HIST.stocks[code]) return '';
+  const rec = HIST.stocks[code];
+  const dates = HIST.dates;
+  if (!dates || dates.length < 2) return '';
+  const ck = cumulative(rec.kf.ret), ch = cumulative(rec.hx.ret);
+  if (ck.every(v => v === 0) && ch.every(v => v === 0)) return '';
+  return `<div class="vcard chart-card"><div class="vhead">
+      📈 过去一个月每日累计收益（相对未做T0基准）
+      <span class="chart-legend"><span class="ln"><span class="sw" style="background:#6d28d9"></span>卡方</span><span class="ln"><span class="sw" style="background:#0369a1"></span>皓兴</span></span>
+    </div><div class="chart-body">
+      <svg id="histSvg" data-code="${esc(code)}"></svg>
+      <div class="chart-tip" id="histTip"></div>
+    </div><div class="chart-meta">
+      <span>区间：${dates[0]} 至 ${dates[dates.length - 1]}（${dates.length} 个交易日）</span>
+      <span>累计收益 = 每日收益率复利累乘；未交易日视为收益0</span>
+    </div></div>`;
+}
+function renderHist(code) {
+  const svg = document.getElementById('histSvg');
+  if (!svg) return;
+  const rec = HIST.stocks[code];
+  renderChart(svg, document.getElementById('histTip'), {
+    dates: HIST.dates,
+    series: [{ name: '卡方', color: '#6d28d9', data: cumulative(rec.kf.ret) }, { name: '皓兴', color: '#0369a1', data: cumulative(rec.hx.ret) }],
+    yFmt: v => fmtN(v),
+  });
+}
+
+function renderStock(code) {
+  const s = stocks[code];
+  if (!s) return;
+  const el = document.getElementById('result');
+  el.innerHTML = `
+    <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
+      <span class="dates">卡方: <b>${esc(DATA.kafang_date || '-')}</b><br>皓兴: <b>${esc(DATA.haoxing_date || '-')}</b></span></div>
+    ${histBlock(code)}
+    <div class="vcard" style="margin-top:16px"><div class="vhead">⚖️ 两家共有指标对比</div><div class="vbody">${compareRows(s) || '<div class="no-data">两家暂无共同指标数据</div>'}</div></div>
+    <div class="vendors">
+      <div class="vcard"><div class="vhead"><span class="tag tag-kf">卡方</span> 日内回转plus</div><div class="vbody">${metricBlock(s.kafang, 'kafang')}</div></div>
+      <div class="vcard"><div class="vhead"><span class="tag tag-hx">皓兴</span> 稳定T0</div><div class="vbody">${metricBlock(s.haoxing, 'haoxing')}</div></div>
+    </div>`;
+  el.classList.add('show');
+  renderHist(code);
+}
+
+// ================= Tab2 内部数据跟踪 =================
+const MON_WIN = { '日': 1, '周': 5, '月': 20 };
+let monMetric = 'ret', monWin = '日', monCode = null, monF = 'all';
+
+function trendData(code, metric, win) {
+  const rec = HIST.stocks[code];
+  const arr = (metric === 'ret') ? [rec.kf.ret, rec.hx.ret] : (metric === 'open') ? [rec.kf.open, rec.hx.open] : [rec.kf.win, rec.hx.win];
+  return arr.map(a => rollingMean(a, MON_WIN[win]));
+}
+
+// 告警引擎: 每个算法商用其"最新有数据日"做分布与告警扫描
+function vendorLastDay(v) {
+  const n = HIST.dates.length;
+  for (let i = n - 1; i >= 0; i--) {
+    let cnt = 0;
+    for (const rec of Object.values(HIST.stocks)) { if (rec[v].ret[i] != null) cnt++; }
+    if (cnt > 100) return i;
+  }
+  return n - 1;
+}
+function vendorAvgRet(v, day) {
+  let s = 0, c = 0;
+  for (const rec of Object.values(HIST.stocks)) { const r = rec[v].ret[day]; if (r != null) { s += r; c++; } }
+  return c ? s / c : null;
+}
+
+function detectAll() {
+  const n = HIST.dates.length;
+  const last = { kf: vendorLastDay('kf'), hx: vendorLastDay('hx') };
+  const alerts = []; // {code,name,vendor,date,level,msg,val}
+  const dist = { kf: [], hx: [] };
+  for (const v of ['kf', 'hx']) {
+    const d = last[v];
+    for (const rec of Object.values(HIST.stocks)) {
+      const r = rec[v].ret[d];
+      if (r != null) dist[v].push(r);
+    }
+  }
+  function stats(a) { if (!a.length) return { m: 0, sd: 0 }; const m = a.reduce((x, y) => x + y, 0) / a.length; const sd = Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length); return { m, sd }; }
+  const st = { kf: stats(dist.kf), hx: stats(dist.hx) };
+
+  for (const [code, rec] of Object.entries(HIST.stocks)) {
+    for (const v of ['kf', 'hx']) {
+      const d = last[v];
+      const r = rec[v].ret[d];
+      if (r == null) continue;
+      const date = HIST.dates[d];
+      const { m, sd } = st[v];
+      if (!isNaN(sd)) {
+        if (r <= m - 3 * sd || r <= -2.0) alerts.push({ code, name: rec.name, vendor: v, date, level: 'red', msg: `当日收益 ${fmtN(r)}，显著低于全市场均值(${fmtN(m)})`, val: r });
+        else if (r <= m - 2 * sd || r <= -1.0) alerts.push({ code, name: rec.name, vendor: v, date, level: 'yellow', msg: `当日收益 ${fmtN(r)}，低于全市场均值(${fmtN(m)})`, val: r });
+      }
+      const o = rec[v].open;
+      if (o[d] != null && o[d] >= 95 && d >= 2 && o[d - 1] >= 95 && o[d - 2] >= 95)
+        alerts.push({ code, name: rec.name, vendor: v, date, level: 'yellow', msg: `开仓率连续3日≥95%(${o[d]}%)，可能过热`, val: o[d] });
+      if (o[d] != null && o[d] <= 5 && d >= 3 && (o[d - 1] >= 50 || o[d - 2] >= 50))
+        alerts.push({ code, name: rec.name, vendor: v, date, level: 'red', msg: `开仓率骤降至 ${o[d]}%（前几日≥50%），疑似停开`, val: o[d] });
+      if (v === 'hx' && rec.hx.win[d] != null && d >= 5) {
+        const w5 = rec.hx.win.slice(d - 5, d).filter(x => x != null);
+        const w5m = w5.length ? w5.reduce((a, b) => a + b, 0) / w5.length : null;
+        if (w5m != null && rec.hx.win[d] <= w5m - 20) alerts.push({ code, name: rec.name, vendor: v, date, level: 'yellow', msg: `胜率骤降：当日 ${rec.hx.win[d]}% vs 前5日均值 ${w5m.toFixed(1)}%`, val: rec.hx.win[d] });
+      }
+    }
+  }
+  return alerts;
+}
+
+function renderAlerts() {
+  const list = document.getElementById('alertList');
+  const alerts = detectAll();
+  const redN = alerts.filter(a => a.level === 'red').length;
+  const yellowN = alerts.filter(a => a.level === 'yellow').length;
+  document.getElementById('ovRed').textContent = redN;
+  document.getElementById('ovYellow').textContent = yellowN;
+  document.getElementById('ovStocks').textContent = Object.keys(HIST.stocks).length;
+  // 各家最新有效日与均值
+  const dKf = vendorLastDay('kf'), dHx = vendorLastDay('hx');
+  const avgKf = vendorAvgRet('kf', dKf), avgHx = vendorAvgRet('hx', dHx);
+  document.getElementById('metaKfDate').textContent = HIST.dates[dKf];
+  document.getElementById('metaHxDate').textContent = HIST.dates[dHx];
+  document.getElementById('ovAvg').textContent = `${avgKf == null ? '—' : avgKf.toFixed(3) + '%'} / ${avgHx == null ? '—' : avgHx.toFixed(3) + '%'}`;
+
+  const filtered = alerts.filter(a => monF === 'all' || a.vendor === monF);
+  if (!filtered.length) { list.innerHTML = '<div class="no-data">🎉 两家最新数据日均无告警（或按当前筛选无结果）</div>'; return; }
+  filtered.sort((a, b) => (a.level === b.level ? 0 : a.level === 'red' ? -1 : 1));
+  list.innerHTML = filtered.slice(0, 60).map(a => `
+    <div class="alert-row" data-code="${esc(a.code)}">
+      <span class="light ${a.level}"></span>
+      <span class="a-tag ${a.vendor === 'kf' ? 'tag-kf' : 'tag-hx'}">${a.vendor === 'kf' ? '卡方' : '皓兴'}</span>
+      <span class="a-name">${esc(a.name)}</span>
+      <span class="a-code">${esc(a.code)}</span>
+      <span class="a-msg">${esc(a.msg)}（${esc(a.date)}）</span>
+      <span class="a-val ${a.level === 'red' ? 'red' : 'yellow'}" style="color:${a.level === 'red' ? 'var(--red)' : 'var(--yellow)'}">${a.level === 'red' ? '🔴' : '🟡'}</span>
+    </div>`).join('');
+  list.querySelectorAll('.alert-row').forEach(row => {
+    row.addEventListener('click', () => selectMonStock(row.dataset.code));
+  });
+}
+
+// 个股监控面板
+function selectMonStock(code) {
+  monCode = code;
+  const s = stocks[code];
+  const rec = HIST.stocks[code];
+  if (!s && !rec) return;
+  document.getElementById('monResult').classList.add('show');
+  renderMonPanel();
+  renderMonChart();
+}
+function renderMonPanel() {
+  const code = monCode;
+  const s = stocks[code] || { name: HIST.stocks[code]?.name || '' };
+  const rec = HIST.stocks[code];
+  const el = document.getElementById('monResult');
+  const alerts = detectAll().filter(a => a.code === code);
+  const alertHtml = alerts.length
+    ? `<div class="vcard" style="margin-top:12px"><div class="vhead">🚨 该标的今日告警</div><div class="vbody">${alerts.map(a => `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:13px"><span class="light ${a.level}"></span><span class="a-tag ${a.vendor === 'kf' ? 'tag-kf' : 'tag-hx'}">${a.vendor === 'kf' ? '卡方' : '皓兴'}</span><span>${esc(a.msg)}</span></div>`).join('')}</div></div>`
+    : '';
+  el.innerHTML = `
+    <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
+      <span class="dates">卡方: <b>${esc(DATA.kafang_date || '-')}</b><br>皓兴: <b>${esc(DATA.haoxing_date || '-')}</b></span></div>
+    <div class="vcard chart-card"><div class="vhead">
+        📈 双算法趋势（${monMetricLabel()} · ${monWin}周期）
+        <span class="chart-legend">
+          <span class="seg-btn" data-m="ret">收益率</span><span class="seg-btn" data-m="open">开仓率</span><span class="seg-btn" data-m="win">胜率</span>
+        </span>
+      </div><div class="chart-body">
+        <svg id="monChartSvg"></svg><div class="chart-tip" id="monChartTip"></div>
+      </div><div class="chart-meta">
+        <span>周期：<span class="seg-btn" data-w="日" style="margin:0 4px">日</span><span class="seg-btn" data-w="周" style="margin:0 4px">周</span><span class="seg-btn" data-w="月" style="margin:0 4px">月</span></span>
+        <span>${monWin === '日' ? '日值' : monWin + '滚动均值'} · 胜率口径：卡方=20日胜率 / 皓兴=当日胜率</span>
+      </div></div>
+    ${alertHtml}
+    <div class="vcard" style="margin-top:12px"><div class="vhead">🔍 归因分析（区间 ${HIST.dates[0]} ~ ${HIST.dates[HIST.dates.length - 1]}）</div><div class="vbody">${attrHtml(code)}</div></div>`;
+  // 绑定指标/周期切换
+  el.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', () => { monMetric = b.dataset.m; renderMonPanel(); renderMonChart(); }));
+  el.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', () => { monWin = b.dataset.w; renderMonPanel(); renderMonChart(); }));
+}
+function monMetricLabel() { return monMetric === 'ret' ? '收益率' : monMetric === 'open' ? '开仓率' : '胜率'; }
+function renderMonChart() {
+  const svg = document.getElementById('monChartSvg');
+  if (!svg || !monCode || !HIST.stocks[monCode]) return;
+  const d = trendData(monCode, monMetric, monWin);
+  renderChart(svg, document.getElementById('monChartTip'), {
+    dates: HIST.dates,
+    series: [{ name: '卡方', color: '#6d28d9', data: d[0] }, { name: '皓兴', color: '#0369a1', data: d[1] }],
+    yFmt: v => v.toFixed(2) + (monMetric === 'open' || monMetric === 'win' ? '%' : '%'),
+  });
+}
+
+// 归因
+function idxSeries(key) {
+  if (!BENCH || !BENCH.idx[key]) return null;
+  const closes = BENCH.idx[key];
+  const first = closes.find(v => v != null);
+  if (first == null) return null;
+  return closes.map(c => (c == null ? null : (c / first - 1) * 100));
+}
+function attrHtml(code) {
+  const rec = HIST.stocks[code];
+  const dates = HIST.dates;
+  const n = dates.length;
+  const kc = cumulative(rec.kf.ret), hc = cumulative(rec.hx.ret);
+  const lastK = kc[n - 1] ?? 0, lastH = hc[n - 1] ?? 0;
+  const hs = idxSeries('hs300'), zz = idxSeries('zz500');
+  const hsV = hs ? hs[n - 1] : null, zzV = zz ? zz[n - 1] : null;
+  const exK = hsV != null ? lastK - hsV : null;
+  const exH = hsV != null ? lastH - hsV : null;
+  // 最佳/最差单日
+  const best = { d: null, v: -Infinity }, worst = { d: null, v: Infinity };
+  for (let i = 0; i < n; i++) {
+    const r = rec.kf.ret[i];
+    if (r != null && r > best.v) { best.v = r; best.d = dates[i]; }
+    if (r != null && r < worst.v) { worst.v = r; worst.d = dates[i]; }
+  }
+  // 连续正/负天数(最新)
+  let posStreak = 0, negStreak = 0;
+  for (let i = n - 1; i >= 0; i--) { const r = rec.kf.ret[i]; if (r == null || r <= 0) break; posStreak++; }
+  for (let i = n - 1; i >= 0; i--) { const r = rec.kf.ret[i]; if (r == null || r >= 0) break; negStreak++; }
+  const avg = (arr) => { const a = arr.filter(x => x != null); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; };
+  const kAvg = avg(rec.kf.ret), hAvg = avg(rec.hx.ret);
+  const industry = IND && IND.industry ? IND.industry[code.split('.')[0]] : null;
+
+  const verdict = lastK > 0 ? 'good' : 'bad';
+  const verdictText = lastK > 0 ? '表现较好' : '表现偏弱';
+  let note = `区间内卡方累计收益 <b class="${lastK >= 0 ? 'up' : 'down'}">${fmtN(lastK)}</b>，皓兴累计 <b class="${lastH >= 0 ? 'up' : 'down'}">${fmtN(lastH)}</b>。`;
+  if (hsV != null) {
+    note += `同期沪深300 <b>${fmtN(hsV)}</b>，卡方超额 <b class="${(exK || 0) >= 0 ? 'up' : 'down'}">${fmtN(exK)}</b>、皓兴超额 <b class="${(exH || 0) >= 0 ? 'up' : 'down'}">${fmtN(exH)}</b>。`;
+  }
+  if (posStreak >= 3) note += `当前处于连续 ${posStreak} 日盈利状态。`;
+  if (negStreak >= 3) note += `当前处于连续 ${negStreak} 日亏损状态，需关注。`;
+  if (best.d && best.v > 0) note += `区间最强单日为 ${best.d}（+${best.v.toFixed(2)}%）。`;
+  if (worst.d && worst.v < 0) note += `最大回撤日为 ${worst.d}（${worst.v.toFixed(2)}%）。`;
+  if (!industry) note += `行业数据源暂缺，未做板块维度对比。`;
+
+  return `<div class="attr-grid">
+      <div class="attr-item"><div class="al">卡方累计收益</div><div class="av ${lastK >= 0 ? 'up' : 'down'}">${fmtN(lastK)}</div></div>
+      <div class="attr-item"><div class="al">皓兴累计收益</div><div class="av ${lastH >= 0 ? 'up' : 'down'}">${fmtN(lastH)}</div></div>
+      <div class="attr-item"><div class="al">对沪深300超额（卡方）</div><div class="av ${(exK || 0) >= 0 ? 'up' : 'down'}">${exK == null ? '—' : fmtN(exK)}</div></div>
+      <div class="attr-item"><div class="al">对沪深300超额（皓兴）</div><div class="av ${(exH || 0) >= 0 ? 'up' : 'down'}">${exH == null ? '—' : fmtN(exH)}</div></div>
+      <div class="attr-item"><div class="al">日平均收益（卡方/皓兴）</div><div class="av">${kAvg == null ? '—' : kAvg.toFixed(3) + '%'} / ${hAvg == null ? '—' : hAvg.toFixed(3) + '%'}</div></div>
+      <div class="attr-item"><div class="al">所属行业</div><div class="av" style="font-size:13px">${esc(industry || '数据源暂缺')}</div></div>
+    </div>
+    <div class="attr-note ${verdict}"><b>${verdictText}</b>：${note}</div>`;
+}
+
+// ================= 初始化 =================
+document.getElementById('dateKf').textContent = DATA.kafang_date || '-';
+document.getElementById('dateHx').textContent = DATA.haoxing_date || '-';
+
+// Tabs
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
+    if (btn.dataset.tab === 'monitor') { renderAlerts(); if (monCode) { renderMonPanel(); renderMonChart(); } }
+  });
+});
+
+// Tab1 搜索
+makeSearch('searchInput', 'dropdown', renderStock);
+const demo = ['000001', '000002', '600519', '300750', '301520', '688260'];
+document.getElementById('chips').innerHTML = demo.map(c => stocks[c] ? `<button class="chip" data-c="${c}">${esc(c)} ${esc(stocks[c].name)}</button>` : '').join('');
+document.getElementById('chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) renderStock(c.dataset.c); });
+
+// Tab2 搜索
+makeSearch('monInput', 'monDropdown', selectMonStock);
+// Tab2 告警筛选
+document.querySelectorAll('#alertList').forEach(() => {});
+document.querySelectorAll('.vhead .seg-btn[data-f]').forEach(b => {
+  b.addEventListener('click', () => { monF = b.dataset.f; renderAlerts(); });
+});
+</script>
+</body>
+</html>
