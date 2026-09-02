@@ -211,7 +211,7 @@
 <script>
 const DATA = window.T0_DATA;
 const stocks = DATA.stocks || {};
-const HIST = window.T0_HISTORY || null;
+let HIST = window.T0_HISTORY || null;   // 延迟加载后由 ensureHistory 更新
 const BENCH = window.T0_BENCHMARK || null;
 const IND = window.T0_INDUSTRY || null;
 
@@ -363,7 +363,7 @@ function histBlock(code) {
 }
 function renderHist(code) {
   const svg = document.getElementById('histSvg');
-  if (!svg) return;
+  if (!svg || !HIST || !HIST.stocks[code]) return;
   const rec = HIST.stocks[code];
   renderChart(svg, document.getElementById('histTip'), {
     dates: HIST.dates,
@@ -386,8 +386,8 @@ function renderStock(code) {
       <div class="vcard"><div class="vhead"><span class="tag tag-hx">皓兴</span> 稳定T0</div><div class="vbody">${metricBlock(s.haoxing, 'haoxing')}</div></div>
     </div>`;
   el.classList.add('show');
-  if (!histLoaded && !histLoading && HIST == null) {
-    // 历史数据未加载: 先渲染主体, 后台补载后自动补图
+  if (HIST == null) {
+    // 历史数据未加载(首次或加载中): 先渲染主体, 后台补载完成后自动补图
     ensureHistory(() => { if (document.querySelector('#result .code')?.textContent === code) renderStock(code); });
   } else {
     renderHist(code);
@@ -615,6 +615,7 @@ function ensureHistory(cb) {
   s.src = 'history.js';
   s.onload = () => {
     histLoaded = true; histLoading = false;
+    HIST = window.T0_HISTORY;   // 关键: 更新变量引用, 否则后续图表/告警拿不到数据
     const cbs = histCallbacks; histCallbacks = [];
     cbs.forEach(f => { try { f(); } catch (e) {} });
   };
