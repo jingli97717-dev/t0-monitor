@@ -205,9 +205,9 @@
 </div>
 
 <script src="data.js"></script>
-<script src="history.js"></script>
 <script src="benchmark.js"></script>
 <script src="industry.js"></script>
+<!-- history.js(约3MB)按需延迟加载, 仅在进入"内部数据跟踪"时下载, 加速首屏搜索 -->
 <script>
 const DATA = window.T0_DATA;
 const stocks = DATA.stocks || {};
@@ -386,7 +386,12 @@ function renderStock(code) {
       <div class="vcard"><div class="vhead"><span class="tag tag-hx">皓兴</span> 稳定T0</div><div class="vbody">${metricBlock(s.haoxing, 'haoxing')}</div></div>
     </div>`;
   el.classList.add('show');
-  renderHist(code);
+  if (!histLoaded && !histLoading && HIST == null) {
+    // 历史数据未加载: 先渲染主体, 后台补载后自动补图
+    ensureHistory(() => { if (document.querySelector('#result .code')?.textContent === code) renderStock(code); });
+  } else {
+    renderHist(code);
+  }
 }
 
 // ================= Tab2 内部数据跟踪 =================
@@ -600,13 +605,31 @@ document.getElementById('dateKf').textContent = DATA.kafang_date || '-';
 document.getElementById('dateHx').textContent = DATA.haoxing_date || '-';
 
 // Tabs
+let histLoading = false, histLoaded = !!window.T0_HISTORY, histCallbacks = [];
+function ensureHistory(cb) {
+  if (histLoaded) { if (cb) cb(); return; }
+  if (cb) histCallbacks.push(cb);
+  if (histLoading) return; // 已在加载, 回调入队
+  histLoading = true;
+  const s = document.createElement('script');
+  s.src = 'history.js';
+  s.onload = () => {
+    histLoaded = true; histLoading = false;
+    const cbs = histCallbacks; histCallbacks = [];
+    cbs.forEach(f => { try { f(); } catch (e) {} });
+  };
+  s.onerror = () => { histLoading = false; histCallbacks = []; };
+  document.head.appendChild(s);
+}
 document.querySelectorAll('.tab-btn').forEach(btn => {
   btn.addEventListener('click', () => {
     document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
     document.querySelectorAll('.tab-pane').forEach(p => p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
-    if (btn.dataset.tab === 'monitor') { renderAlerts(); if (monCode) { renderMonPanel(); renderMonChart(); } }
+    if (btn.dataset.tab === 'monitor') {
+      ensureHistory(() => { renderAlerts(); if (monCode) { renderMonPanel(); renderMonChart(); } });
+    }
   });
 });
 
