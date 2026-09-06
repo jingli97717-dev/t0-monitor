@@ -207,7 +207,7 @@
           <span class="ln"><span class="sw" style="background:#0369a1"></span>皓兴金股</span>
         </span>
       </div>
-      <div style="padding:8px 18px 0;font-size:12px;color:var(--muted)" id="goldenRule">金股口径（按20日收益取前30，可调）：<b>卡方</b>＝20日收益≥10% 且 20日开仓率≥90% 且 周期开仓率≥90%；<b>皓兴</b>＝20日收益≥2% 且 胜率≥62% 且 近20日开仓≥16天。点击任意股票查看详细监控。</div>
+      <div style="padding:8px 18px 0;font-size:12px;color:var(--muted)" id="goldenRule">金股统一口径：<b>近20个交易日累计超额 ≥5%</b> 且 <b>开仓收益为正的天数 ≥12/20（60%）</b>。两家同标准，按累计超额取前30；点击任意股票查看详细监控。</div>
       <div class="vendors" style="margin-top:6px;padding:0 18px 8px">
         <div class="vcard" style="border:none">
           <div class="vhead" style="padding:10px 12px"><span class="tag tag-kf">卡方</span> 金股池 Top 30</div>
@@ -634,41 +634,53 @@ function attrHtml(code) {
 
 // ---------- 双算法金股池 ----------
 function indOf(code) { return (IND && IND.industry) ? (IND.industry[code.split('.')[0]] || '') : ''; }
-function goldRow(rank, code, s, v1, v1Txt, v2Txt) {
+// 统一口径: 近20交易日累计超额(复利) 与 开仓收益为正的天数占比(分母20)
+function goldenMetrics(rec, vendor) {
+  const arr = (rec && rec[vendor] && rec[vendor].ret) ? rec[vendor].ret.slice(-20) : [];
+  let pos = 0, f = 1, any = false;
+  for (const v of arr) {
+    if (v == null) continue;
+    any = true;
+    f *= (1 + v / 100);
+    if (v > 0) pos++;
+  }
+  return { cum: any ? (f - 1) * 100 : null, pos: pos, days: 20 };
+}
+function goldRow(rank, code, s, cum, pos) {
   const rkCls = rank <= 3 ? (rank === 1 ? 'top1' : rank === 2 ? 'top2' : 'top3') : '';
   const ind = indOf(code);
   return `<div class="gold-row" data-code="${esc(code)}">
       <span class="rank ${rkCls}">${rank + 1}</span>
       <span class="gn"><span class="nm">${esc(s.name || '')}</span> <span class="cd">${esc(code)}</span></span>
       ${ind ? `<span class="gind">${esc(ind)}</span>` : ''}
-      <span class="gv2">${esc(v2Txt)}</span>
-      <span class="gv ${cls(v1)}">${v1Txt}</span>
+      <span class="gv2">正收益 ${pos}/20</span>
+      <span class="gv ${cls(cum)}">${fmtN(cum)}</span>
     </div>`;
 }
 function renderGolden() {
+  if (!HIST || !HIST.stocks) { const e1 = document.getElementById('goldenKf'); if (e1) e1.innerHTML = '<div class="no-data" style="padding:16px">历史数据未加载</div>'; return; }
   const kf = [], hx = [];
   for (const [code, s] of Object.entries(stocks)) {
-    const k = s.kafang, h = s.haoxing;
-    if (k && Object.keys(k).length) {
-      const r20 = parsePct(k['20日收益率']), open20 = parsePct(k['20日开仓率']), cyc = parsePct(k['周期开仓率']);
-      if (r20 != null && r20 >= 10 && open20 != null && open20 >= 90 && cyc != null && cyc >= 90)
-        kf.push({ code, s, r20, open20, cyc });
+    const rec = HIST.stocks[code];
+    if (!rec) continue;
+    if (s.kafang && Object.keys(s.kafang).length) {
+      const m = goldenMetrics(rec, 'kf');
+      if (m.cum != null && m.cum >= 5 && m.pos / m.days >= 0.6) kf.push({ code, s, m });
     }
-    if (h && Object.keys(h).length) {
-      const r20 = parsePct(h['20日收益率']), win = parsePct(h['开仓胜率']), days = parsePct(h['近20日开仓天数']);
-      if (r20 != null && r20 >= 2 && win != null && win >= 62 && days != null && days >= 16)
-        hx.push({ code, s, r20, win, days });
+    if (s.haoxing && Object.keys(s.haoxing).length) {
+      const m = goldenMetrics(rec, 'hx');
+      if (m.cum != null && m.cum >= 5 && m.pos / m.days >= 0.6) hx.push({ code, s, m });
     }
   }
-  kf.sort((a, b) => b.r20 - a.r20);
-  hx.sort((a, b) => b.r20 - a.r20);
+  kf.sort((a, b) => b.m.cum - a.m.cum);
+  hx.sort((a, b) => b.m.cum - a.m.cum);
 
   const elKf = document.getElementById('goldenKf'), elHx = document.getElementById('goldenHx');
   if (!elKf || !elHx) return;
-  if (!kf.length) elKf.innerHTML = '<div class="no-data" style="padding:16px">暂无符合条件的金股（规则见上方）</div>';
-  else elKf.innerHTML = kf.slice(0, 30).map((p, i) => goldRow(i, p.code, p.s, p.r20, fmtN(p.r20), `开仓率${p.open20.toFixed(0)}% / 周期${p.cyc}%`)).join('');
-  if (!hx.length) elHx.innerHTML = '<div class="no-data" style="padding:16px">暂无符合条件的金股（规则见上方）</div>';
-  else elHx.innerHTML = hx.slice(0, 30).map((p, i) => goldRow(i, p.code, p.s, p.r20, fmtN(p.r20), `胜率${p.win.toFixed(1)}% / 开仓${p.days.toFixed(0)}天`)).join('');
+  if (!kf.length) elKf.innerHTML = '<div class="no-data" style="padding:16px">暂无符合金股口径的标的（20日超额≥5% 且 正收益天数≥60%）</div>';
+  else elKf.innerHTML = kf.slice(0, 30).map((p, i) => goldRow(i, p.code, p.s, p.m.cum, p.m.pos)).join('');
+  if (!hx.length) elHx.innerHTML = '<div class="no-data" style="padding:16px">暂无符合金股口径的标的（20日超额≥5% 且 正收益天数≥60%）</div>';
+  else elHx.innerHTML = hx.slice(0, 30).map((p, i) => goldRow(i, p.code, p.s, p.m.cum, p.m.pos)).join('');
   [elKf, elHx].forEach(el => el.querySelectorAll('.gold-row').forEach(row => {
     row.addEventListener('click', () => selectMonStock(row.dataset.code));
   }));
