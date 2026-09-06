@@ -126,6 +126,21 @@
   .attr-note.good { background: #ecfdf5; border-color: #a7f3d0; }
   .attr-note.bad { background: #fef2f2; border-color: #fecaca; }
 
+  /* 金股池 */
+  .gold-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px dashed var(--border); cursor: pointer; font-size: 13px; transition: background .12s; }
+  .gold-row:hover { background: var(--primary-light); }
+  .gold-row:last-child { border-bottom: none; }
+  .gold-row .rank { width: 22px; font-size: 12px; color: var(--muted); font-family: Consolas, Menlo, monospace; flex: none; }
+  .gold-row .rank.top1 { color: #d97706; font-weight: 800; }
+  .gold-row .rank.top2 { color: #64748b; font-weight: 800; }
+  .gold-row .rank.top3 { color: #b45309; font-weight: 800; }
+  .gold-row .gn { flex: 1; min-width: 0; }
+  .gold-row .gn .nm { font-weight: 600; font-size: 13px; }
+  .gold-row .gn .cd { font-family: Consolas, Menlo, monospace; font-size: 11px; color: var(--primary); }
+  .gold-row .gind { font-size: 11px; color: var(--muted); background: #f1f5f9; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
+  .gold-row .gv { font-family: Consolas, Menlo, monospace; font-weight: 700; font-size: 13px; white-space: nowrap; }
+  .gold-row .gv2 { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
   footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; line-height: 1.8; }
 </style>
 </head>
@@ -182,6 +197,28 @@
 
     <!-- 个股监控面板 -->
     <div class="result" id="monResult"></div>
+
+    <!-- 双算法金股池 -->
+    <div class="vcard" style="margin-top:18px">
+      <div class="vhead">
+        🏆 双算法金股池
+        <span class="chart-legend">
+          <span class="ln"><span class="sw" style="background:#6d28d9"></span>卡方金股</span>
+          <span class="ln"><span class="sw" style="background:#0369a1"></span>皓兴金股</span>
+        </span>
+      </div>
+      <div style="padding:8px 18px 0;font-size:12px;color:var(--muted)" id="goldenRule">金股口径（按20日收益取前30，可调）：<b>卡方</b>＝20日收益≥10% 且 20日开仓率≥90% 且 周期开仓率≥90%；<b>皓兴</b>＝20日收益≥2% 且 胜率≥62% 且 近20日开仓≥16天。点击任意股票查看详细监控。</div>
+      <div class="vendors" style="margin-top:6px;padding:0 18px 8px">
+        <div class="vcard" style="border:none">
+          <div class="vhead" style="padding:10px 12px"><span class="tag tag-kf">卡方</span> 金股池 Top 30</div>
+          <div id="goldenKf"><div class="no-data" style="padding:20px">计算中…</div></div>
+        </div>
+        <div class="vcard" style="border:none">
+          <div class="vhead" style="padding:10px 12px"><span class="tag tag-hx">皓兴</span> 金股池 Top 30</div>
+          <div id="goldenHx"><div class="no-data" style="padding:20px">计算中…</div></div>
+        </div>
+      </div>
+    </div>
 
     <!-- 全市场告警列表 -->
     <div class="vcard" style="margin-top:18px">
@@ -595,6 +632,48 @@ function attrHtml(code) {
     <div class="attr-note ${verdict}"><b>${verdictText}</b>：${note}</div>`;
 }
 
+// ---------- 双算法金股池 ----------
+function indOf(code) { return (IND && IND.industry) ? (IND.industry[code.split('.')[0]] || '') : ''; }
+function goldRow(rank, code, s, v1, v1Txt, v2Txt) {
+  const rkCls = rank <= 3 ? (rank === 1 ? 'top1' : rank === 2 ? 'top2' : 'top3') : '';
+  const ind = indOf(code);
+  return `<div class="gold-row" data-code="${esc(code)}">
+      <span class="rank ${rkCls}">${rank + 1}</span>
+      <span class="gn"><span class="nm">${esc(s.name || '')}</span> <span class="cd">${esc(code)}</span></span>
+      ${ind ? `<span class="gind">${esc(ind)}</span>` : ''}
+      <span class="gv2">${esc(v2Txt)}</span>
+      <span class="gv ${cls(v1)}">${v1Txt}</span>
+    </div>`;
+}
+function renderGolden() {
+  const kf = [], hx = [];
+  for (const [code, s] of Object.entries(stocks)) {
+    const k = s.kafang, h = s.haoxing;
+    if (k && Object.keys(k).length) {
+      const r20 = parsePct(k['20日收益率']), open20 = parsePct(k['20日开仓率']), cyc = parsePct(k['周期开仓率']);
+      if (r20 != null && r20 >= 10 && open20 != null && open20 >= 90 && cyc != null && cyc >= 90)
+        kf.push({ code, s, r20, open20, cyc });
+    }
+    if (h && Object.keys(h).length) {
+      const r20 = parsePct(h['20日收益率']), win = parsePct(h['开仓胜率']), days = parsePct(h['近20日开仓天数']);
+      if (r20 != null && r20 >= 2 && win != null && win >= 62 && days != null && days >= 16)
+        hx.push({ code, s, r20, win, days });
+    }
+  }
+  kf.sort((a, b) => b.r20 - a.r20);
+  hx.sort((a, b) => b.r20 - a.r20);
+
+  const elKf = document.getElementById('goldenKf'), elHx = document.getElementById('goldenHx');
+  if (!elKf || !elHx) return;
+  if (!kf.length) elKf.innerHTML = '<div class="no-data" style="padding:16px">暂无符合条件的金股（规则见上方）</div>';
+  else elKf.innerHTML = kf.slice(0, 30).map((p, i) => goldRow(i, p.code, p.s, p.r20, fmtN(p.r20), `开仓率${p.open20.toFixed(0)}% / 周期${p.cyc}%`)).join('');
+  if (!hx.length) elHx.innerHTML = '<div class="no-data" style="padding:16px">暂无符合条件的金股（规则见上方）</div>';
+  else elHx.innerHTML = hx.slice(0, 30).map((p, i) => goldRow(i, p.code, p.s, p.r20, fmtN(p.r20), `胜率${p.win.toFixed(1)}% / 开仓${p.days.toFixed(0)}天`)).join('');
+  [elKf, elHx].forEach(el => el.querySelectorAll('.gold-row').forEach(row => {
+    row.addEventListener('click', () => selectMonStock(row.dataset.code));
+  }));
+}
+
 // ================= 初始化 =================
 document.getElementById('dateKf').textContent = DATA.kafang_date || '-';
 document.getElementById('dateHx').textContent = DATA.haoxing_date || '-';
@@ -608,6 +687,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'monitor') {
       renderAlerts();
+      renderGolden();
       if (monCode) { renderMonPanel(); renderMonChart(); }
     }
   });
