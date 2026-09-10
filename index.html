@@ -93,29 +93,11 @@
   .monitor-head { text-align: center; margin-bottom: 16px; }
   .monitor-head h2 { font-size: 18px; font-weight: 700; }
   .monitor-head .sub { color: var(--muted); font-size: 12px; margin-top: 4px; }
-  .ov-card { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; margin-bottom: 16px; }
-  @media (max-width: 680px) { .ov-card { grid-template-columns: repeat(2, 1fr); } }
-  .ov { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); padding: 14px 16px; text-align: center; }
-  .ov .num { font-size: 22px; font-weight: 800; font-family: Consolas, Menlo, monospace; }
-  .ov .lbl { font-size: 12px; color: var(--muted); margin-top: 4px; }
-  .ov .num.red { color: var(--red); } .ov .num.yellow { color: var(--yellow); } .ov .num.green { color: var(--green); } .ov .num.blue { color: var(--primary); }
 
   .seg { display: flex; gap: 8px; justify-content: center; margin: 14px 0; flex-wrap: wrap; }
   .seg-btn { border: 1px solid var(--border); background: var(--card); color: var(--muted); border-radius: 8px; padding: 6px 16px; font-size: 13px; font-weight: 600; cursor: pointer; transition: all .15s; }
   .seg-btn.active { background: #1e3a8a; border-color: #1e3a8a; color: #fff; }
   .seg-btn:hover:not(.active) { border-color: var(--primary); color: var(--primary); }
-
-  .alert-row { display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-bottom: 1px solid var(--border); cursor: pointer; transition: background .12s; }
-  .alert-row:hover { background: var(--primary-light); }
-  .alert-row:last-child { border-bottom: none; }
-  .light { width: 12px; height: 12px; border-radius: 50%; flex: none; }
-  .light.red { background: var(--red); box-shadow: 0 0 0 3px rgba(220,38,38,.15); }
-  .light.yellow { background: var(--yellow); box-shadow: 0 0 0 3px rgba(217,119,6,.15); }
-  .alert-row .a-name { font-weight: 600; font-size: 14px; min-width: 90px; }
-  .alert-row .a-code { font-family: Consolas, Menlo, monospace; font-size: 12px; color: var(--primary); min-width: 80px; }
-  .alert-row .a-tag { font-size: 11px; padding: 1px 7px; border-radius: 999px; font-weight: 600; }
-  .alert-row .a-msg { font-size: 12px; color: var(--muted); flex: 1; }
-  .alert-row .a-val { font-family: Consolas, Menlo, monospace; font-size: 13px; font-weight: 700; }
 
   .attr-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
   @media (max-width: 680px) { .attr-grid { grid-template-columns: 1fr; } }
@@ -140,6 +122,20 @@
   .gold-row .gind { font-size: 11px; color: var(--muted); background: #f1f5f9; border-radius: 6px; padding: 1px 6px; white-space: nowrap; }
   .gold-row .gv { font-family: Consolas, Menlo, monospace; font-weight: 700; font-size: 13px; white-space: nowrap; }
   .gold-row .gv2 { font-size: 11px; color: var(--muted); white-space: nowrap; }
+
+  /* 对客话术 */
+  .huashu-nav { display: flex; gap: 6px; flex-wrap: wrap; align-items: center; }
+  .huashu-nav a { color: var(--primary); text-decoration: none; font-size: 12px; padding: 3px 10px; border: 1px solid var(--border); border-radius: 999px; background: #fff; transition: all .15s; }
+  .huashu-nav a:hover { background: var(--primary); border-color: var(--primary); color: #fff; }
+  .huashu-block { padding: 16px 4px; border-bottom: 1px dashed var(--border); scroll-margin-top: 70px; }
+  .huashu-block:last-child { border-bottom: none; }
+  .huashu-head { font-size: 16px; font-weight: 700; margin-bottom: 12px; color: var(--text); display: flex; align-items: center; gap: 10px; }
+  .huashu-num { width: 24px; height: 24px; border-radius: 50%; background: var(--primary); color: #fff; font-size: 13px; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; flex: none; }
+  .huashu-sub { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 12px 16px; margin-bottom: 10px; }
+  .huashu-sub:last-child { margin-bottom: 0; }
+  .huashu-sub-head { font-size: 13px; font-weight: 700; color: var(--text); margin-bottom: 8px; }
+  .huashu-text { font-size: 13px; line-height: 1.9; color: #374151; white-space: pre-wrap; }
+  .huashu-action { margin-top: 8px; font-size: 12px; color: #92400e; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 8px 12px; border-radius: 6px; line-height: 1.7; }
 
   footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; line-height: 1.8; }
 </style>
@@ -174,22 +170,14 @@
   <section id="tab-monitor" class="tab-pane">
     <div class="monitor-head">
       <h2>算法健康度监控</h2>
-      <div class="sub">双算法趋势 / 红黄灯异常告警 / 归因分析（基于近一个月日频数据）</div>
-    </div>
-
-    <!-- 全市场概览 -->
-    <div class="ov-card">
-      <div class="ov"><div class="num blue" id="ovStocks">-</div><div class="lbl">监控标的数</div></div>
-      <div class="ov"><div class="num red" id="ovRed">-</div><div class="lbl">红灯告警</div></div>
-      <div class="ov"><div class="num yellow" id="ovYellow">-</div><div class="lbl">黄灯告警</div></div>
-      <div class="ov"><div class="num" id="ovAvg" style="font-size:16px">-</div><div class="lbl">最新日均收益（卡方 / 皓兴）</div></div>
+      <div class="sub">双算法趋势 / 归因分析 / 金股池 / 对客话术（基于近一个月日频数据）</div>
     </div>
 
     <!-- 监控股票选择 -->
     <div class="search-wrap" style="max-width:560px">
       <div class="search-box">
         <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.3-4.3"/></svg>
-        <input id="monInput" type="text" placeholder="选择标的查看趋势 / 告警 / 归因，如 平安银行" autocomplete="off">
+        <input id="monInput" type="text" placeholder="选择标的查看趋势 / 归因 / 金股池跳转，如 平安银行" autocomplete="off">
         <button class="clear" id="monClear" style="display:none">✕</button>
       </div>
       <div class="dropdown" id="monDropdown"></div>
@@ -220,18 +208,75 @@
       </div>
     </div>
 
-    <!-- 全市场告警列表 -->
+    <!-- 对客话术 -->
     <div class="vcard" style="margin-top:18px">
       <div class="vhead">
-        🚨 异常告警（全市场）
-        <span class="chart-legend">
-          <span class="seg-btn" data-f="all" style="margin:0;padding:3px 12px">全部</span>
-          <span class="seg-btn" data-f="kf" style="margin:0;padding:3px 12px">卡方</span>
-          <span class="seg-btn" data-f="hx" style="margin:0;padding:3px 12px">皓兴</span>
+        🗣️ 对客话术
+        <span class="huashu-nav">
+          <a href="#hu1">① 客户推广</a>
+          <a href="#hu2">② 运行介绍</a>
+          <a href="#hu3">③ 亏损安抚</a>
+          <a href="#hu4">④ 不开仓</a>
+          <a href="#hu5">⑤ 平买平卖</a>
         </span>
       </div>
-      <div style="padding:8px 18px 0;font-size:12px;color:var(--muted)">数据日期：卡方 <b id="metaKfDate">-</b> / 皓兴 <b id="metaHxDate">-</b>（各算法商以其最新有数据日扫描）</div>
-      <div id="alertList"><div class="no-data">正在计算告警…</div></div>
+      <div style="padding:6px 18px 14px">
+
+        <section id="hu1" class="huashu-block">
+          <div class="huashu-head"><span class="huashu-num">一</span>T0 客户推广话术</div>
+          <div class="huashu-sub">
+            <div class="huashu-sub-head">▸ 针对长期持有型投资者：无需盯盘操作，增厚持仓收益</div>
+            <div class="huashu-text">XX 客户您好，我司上线 T0 策略交易工具，特别适合长期持股、不想天天盯盘的您。开通设置好之后就能全自动运行，盘中自动低买高卖、日内平仓，收益基本保持原有持仓不变；若策略成功完成日内低买高卖，有望赚取差价增厚您的长期收益，不用您额外操心，要不要体验一下？</div>
+          </div>
+          <div class="huashu-sub">
+            <div class="huashu-sub-head">▸ 针对高频交易投资者：交易速度快，佣金费率低</div>
+            <div class="huashu-text">XX 客户您好，之前听您经常做短线交易，刚好跟您说下我们新上的 T0 策略工具。跟您自己手动操作不一样，它核心优势就是快、成本低：下单是毫秒级响应，走极速柜台；算法还能智能化优化下单路径，减少冲击成本，而且手续费可以做到免 5。它是用您现有的持仓做底仓，系统自动捕捉盘中机会做日内买卖，收益基本保持原有仓位不变。您要不要体验一下？</div>
+          </div>
+          <div class="huashu-sub">
+            <div class="huashu-sub-head">▸ 使用条件单的投资者：打不过就加入，体验策略交易</div>
+            <div class="huashu-text">XX 客户您好，之前看您一直在用条件单做交易，最近行情热点轮动特别快，不少股票量化资金参与度高，板块持续性弱，手动挂条件单经常跟不上节奏，成交效果也一般。我们新上线的 T0 策略交易工具，就很适合您现在的情况。相比自己手动设置条件单，它能实时盯盘、毫秒级响应，由 AI 自动捕捉日内高低点，智能化优化买卖时机，不用您反复改单。在不改变您原有持仓的前提下，抓紧日内波动收益，相当于"打不过就加入"的自动化方案，您要不要体验一下？</div>
+          </div>
+        </section>
+
+        <section id="hu2" class="huashu-block">
+          <div class="huashu-head"><span class="huashu-num">二</span>T0 运行介绍话术</div>
+          <div class="huashu-sub">
+            <div class="huashu-text">您好，我简单跟您说下咱们 T0 策略的历史胜率和收益情况，同时把有哪些风险都讲清楚，您可以做个参考。</div>
+            <div class="huashu-text" style="margin-top:8px">首先说胜率：我们统计了从去年 9 月到今年 3 月，一共 234 个交易日，国信在运行 T0 策略的客户情况。整体上看，客户综合收益中有 213 天是盈利的，21 天亏损，所以历史胜率是 91%。</div>
+            <div class="huashu-text" style="margin-top:8px">然后说赔率：这段时间里，T0 开仓部分平均每天能增厚 9.99 个 BP，1 个 BP 就是万分之一，折算下来年化大概 24.97%。这部分是扣完手续费的。不过必须跟您说明：这只是开仓交易部分的历史增厚，不是您全仓的收益，也不是保证收益。</div>
+            <div class="huashu-text" style="margin-top:8px">我再跟您讲清楚两个关键特点和风险：</div>
+            <div class="huashu-text" style="margin-top:8px">第一，收益不是每天平均赚。历史看，70%-80% 的收益，集中在 20% 的交易日里，所以一定要长期委托、保持在场，不要因为一两天没收益或者亏损就退出。</div>
+            <div class="huashu-text" style="margin-top:8px">第二，策略跟市场成交量高度相关。市场活跃、放量的时候，效果通常更好；市场缩量盘整时，可能出现小幅回撤，这是正常现象。</div>
+            <div class="huashu-text" style="margin-top:8px">上述和您说的历史胜率和赔率供您参考，另外，也和您说一下，T0 策略它属于模型交易，它受市场周期、市场风格影响，不能确保策略在任何市场环境下长期有效。而且遇到急涨急跌的极端行情时可能股票快速涨跌停，买卖不顺畅，会存在买不进或卖不出的情况，也会带来一定风险。所以它也存在策略失效、持仓集中、手工交易冲突、极端行情等风险。</div>
+          </div>
+        </section>
+
+        <section id="hu3" class="huashu-block">
+          <div class="huashu-head"><span class="huashu-num">三</span>短期 T0 亏损安抚话术</div>
+          <div class="huashu-sub">
+            <div class="huashu-text">您好，刚刚您反馈 T0 策略这几天有连续小幅回撤，特意跟您同步一下，这属于策略正常波动，不是策略失效。</div>
+            <div class="huashu-text" style="margin-top:8px">首先您放心，T0 本来就不是每天都赚钱，历史数据也很清楚：它的收益不是均匀分布的，70%-80% 的收益都集中在少数几天，大部分利润是一波出来的，不是天天稳赚。而且我们统计过，策略运行天数越长，胜率越稳，短期几天亏损完全在正常范围内，只要长期委托保持在场，更有机会抓住那部分关键收益日。</div>
+            <div class="huashu-text" style="margin-top:8px">我也顺便跟您提个优化建议，能帮您更稳一点：咱们尽量分散授权、不要太集中，因为只压一只股票，导致策略集中度越高，短期波动反而越大；分散开，胜率会平稳些，回撤也会小一些。</div>
+            <div class="huashu-text" style="margin-top:8px">我再跟您明确一下：短期连续亏损是市场缩量、波动变化带来的正常回撤，不是策略问题。只要坚持长期在场、分散持仓、配足资金，整体历史胜率和收益增厚都是有数据支撑的，所有历史表现不代表未来，不承诺收益，我这边会持续帮您跟踪，有变化第一时间跟您说。您不用太在意这几天的短期波动，我们按策略规则长期持有就好。</div>
+          </div>
+        </section>
+
+        <section id="hu4" class="huashu-block">
+          <div class="huashu-head"><span class="huashu-num">四</span>T0 签约不开仓话术</div>
+          <div class="huashu-sub">
+            <div class="huashu-text">当 T0 策略没有捕捉到开仓信号的时候，就不会有开仓。T0 策略对单只标的的开仓和盈利都不是均匀分布在不同交易日的，单只标的的大多数开仓和盈利均在少数交易日完成，建议您耐心等待。</div>
+            <div class="huashu-action">动作：协助客户查询授权标的的历史开仓率，建议客户优先授权历史开仓率和收益率较好的标的。</div>
+          </div>
+        </section>
+
+        <section id="hu5" class="huashu-block">
+          <div class="huashu-head"><span class="huashu-num">五</span>T0 出现平买平卖话术</div>
+          <div class="huashu-sub">
+            <div class="huashu-text">T0 策略是捕捉极短周期内的趋势，所以当发出交易信号的同时也会做好为短期趋势预测错误而止损的准备。当短期预测趋势走势确认错误时，T0 策略就会自动触发平仓信号，即可能出现同价买卖、甚至高买低卖的亏损情况出现。</div>
+          </div>
+        </section>
+
+      </div>
     </div>
   </section>
 
@@ -428,101 +473,12 @@ function renderStock(code) {
 
 // ================= Tab2 内部数据跟踪 =================
 const MON_WIN = { '日': 1, '周': 5, '月': 20 };
-let monMetric = 'ret', monWin = '日', monCode = null, monF = 'all';
+let monMetric = 'ret', monWin = '日', monCode = null;
 
 function trendData(code, metric, win) {
   const rec = HIST.stocks[code];
   const arr = (metric === 'ret') ? [rec.kf.ret, rec.hx.ret] : (metric === 'open') ? [rec.kf.open, rec.hx.open] : [rec.kf.win, rec.hx.win];
   return arr.map(a => rollingMean(a, MON_WIN[win]));
-}
-
-// 告警引擎: 每个算法商用其"最新有数据日"做分布与告警扫描
-function vendorLastDay(v) {
-  const n = HIST.dates.length;
-  for (let i = n - 1; i >= 0; i--) {
-    let cnt = 0;
-    for (const rec of Object.values(HIST.stocks)) { if (rec[v].ret[i] != null) cnt++; }
-    if (cnt > 100) return i;
-  }
-  return n - 1;
-}
-function vendorAvgRet(v, day) {
-  let s = 0, c = 0;
-  for (const rec of Object.values(HIST.stocks)) { const r = rec[v].ret[day]; if (r != null) { s += r; c++; } }
-  return c ? s / c : null;
-}
-
-function detectAll() {
-  const n = HIST.dates.length;
-  const last = { kf: vendorLastDay('kf'), hx: vendorLastDay('hx') };
-  const alerts = []; // {code,name,vendor,date,level,msg,val}
-  const dist = { kf: [], hx: [] };
-  for (const v of ['kf', 'hx']) {
-    const d = last[v];
-    for (const rec of Object.values(HIST.stocks)) {
-      const r = rec[v].ret[d];
-      if (r != null) dist[v].push(r);
-    }
-  }
-  function stats(a) { if (!a.length) return { m: 0, sd: 0 }; const m = a.reduce((x, y) => x + y, 0) / a.length; const sd = Math.sqrt(a.reduce((x, y) => x + (y - m) ** 2, 0) / a.length); return { m, sd }; }
-  const st = { kf: stats(dist.kf), hx: stats(dist.hx) };
-
-  for (const [code, rec] of Object.entries(HIST.stocks)) {
-    for (const v of ['kf', 'hx']) {
-      const d = last[v];
-      const r = rec[v].ret[d];
-      if (r == null) continue;
-      const date = HIST.dates[d];
-      const { m, sd } = st[v];
-      if (!isNaN(sd)) {
-        if (r <= m - 3 * sd || r <= -2.0) alerts.push({ code, name: rec.name, vendor: v, date, level: 'red', msg: `当日收益 ${fmtN(r)}，显著低于全市场均值(${fmtN(m)})`, val: r });
-        else if (r <= m - 2 * sd || r <= -1.0) alerts.push({ code, name: rec.name, vendor: v, date, level: 'yellow', msg: `当日收益 ${fmtN(r)}，低于全市场均值(${fmtN(m)})`, val: r });
-      }
-      const o = rec[v].open;
-      if (o[d] != null && o[d] >= 95 && d >= 2 && o[d - 1] >= 95 && o[d - 2] >= 95)
-        alerts.push({ code, name: rec.name, vendor: v, date, level: 'yellow', msg: `开仓率连续3日≥95%(${o[d]}%)，可能过热`, val: o[d] });
-      if (o[d] != null && o[d] <= 5 && d >= 3 && (o[d - 1] >= 50 || o[d - 2] >= 50))
-        alerts.push({ code, name: rec.name, vendor: v, date, level: 'red', msg: `开仓率骤降至 ${o[d]}%（前几日≥50%），疑似停开`, val: o[d] });
-      if (v === 'hx' && rec.hx.win[d] != null && d >= 5) {
-        const w5 = rec.hx.win.slice(d - 5, d).filter(x => x != null);
-        const w5m = w5.length ? w5.reduce((a, b) => a + b, 0) / w5.length : null;
-        if (w5m != null && rec.hx.win[d] <= w5m - 20) alerts.push({ code, name: rec.name, vendor: v, date, level: 'yellow', msg: `胜率骤降：当日 ${rec.hx.win[d]}% vs 前5日均值 ${w5m.toFixed(1)}%`, val: rec.hx.win[d] });
-      }
-    }
-  }
-  return alerts;
-}
-
-function renderAlerts() {
-  const list = document.getElementById('alertList');
-  const alerts = detectAll();
-  const redN = alerts.filter(a => a.level === 'red').length;
-  const yellowN = alerts.filter(a => a.level === 'yellow').length;
-  document.getElementById('ovRed').textContent = redN;
-  document.getElementById('ovYellow').textContent = yellowN;
-  document.getElementById('ovStocks').textContent = Object.keys(HIST.stocks).length;
-  // 各家最新有效日与均值
-  const dKf = vendorLastDay('kf'), dHx = vendorLastDay('hx');
-  const avgKf = vendorAvgRet('kf', dKf), avgHx = vendorAvgRet('hx', dHx);
-  document.getElementById('metaKfDate').textContent = HIST.dates[dKf];
-  document.getElementById('metaHxDate').textContent = HIST.dates[dHx];
-  document.getElementById('ovAvg').textContent = `${avgKf == null ? '—' : avgKf.toFixed(3) + '%'} / ${avgHx == null ? '—' : avgHx.toFixed(3) + '%'}`;
-
-  const filtered = alerts.filter(a => monF === 'all' || a.vendor === monF);
-  if (!filtered.length) { list.innerHTML = '<div class="no-data">🎉 两家最新数据日均无告警（或按当前筛选无结果）</div>'; return; }
-  filtered.sort((a, b) => (a.level === b.level ? 0 : a.level === 'red' ? -1 : 1));
-  list.innerHTML = filtered.slice(0, 60).map(a => `
-    <div class="alert-row" data-code="${esc(a.code)}">
-      <span class="light ${a.level}"></span>
-      <span class="a-tag ${a.vendor === 'kf' ? 'tag-kf' : 'tag-hx'}">${a.vendor === 'kf' ? '卡方' : '皓兴'}</span>
-      <span class="a-name">${esc(a.name)}</span>
-      <span class="a-code">${esc(a.code)}</span>
-      <span class="a-msg">${esc(a.msg)}（${esc(a.date)}）</span>
-      <span class="a-val ${a.level === 'red' ? 'red' : 'yellow'}" style="color:${a.level === 'red' ? 'var(--red)' : 'var(--yellow)'}">${a.level === 'red' ? '🔴' : '🟡'}</span>
-    </div>`).join('');
-  list.querySelectorAll('.alert-row').forEach(row => {
-    row.addEventListener('click', () => selectMonStock(row.dataset.code));
-  });
 }
 
 // 个股监控面板
@@ -540,10 +496,6 @@ function renderMonPanel() {
   const s = stocks[code] || { name: HIST.stocks[code]?.name || '' };
   const rec = HIST.stocks[code];
   const el = document.getElementById('monResult');
-  const alerts = detectAll().filter(a => a.code === code);
-  const alertHtml = alerts.length
-    ? `<div class="vcard" style="margin-top:12px"><div class="vhead">🚨 该标的今日告警</div><div class="vbody">${alerts.map(a => `<div style="display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px dashed var(--border);font-size:13px"><span class="light ${a.level}"></span><span class="a-tag ${a.vendor === 'kf' ? 'tag-kf' : 'tag-hx'}">${a.vendor === 'kf' ? '卡方' : '皓兴'}</span><span>${esc(a.msg)}</span></div>`).join('')}</div></div>`
-    : '';
   el.innerHTML = `
     <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
       <span class="dates">卡方: <b>${esc(DATA.kafang_date || '-')}</b><br>皓兴: <b>${esc(DATA.haoxing_date || '-')}</b></span></div>
@@ -558,7 +510,6 @@ function renderMonPanel() {
         <span>周期：<span class="seg-btn" data-w="日" style="margin:0 4px">日</span><span class="seg-btn" data-w="周" style="margin:0 4px">周</span><span class="seg-btn" data-w="月" style="margin:0 4px">月</span></span>
         <span>${monWin === '日' ? '日值' : monWin + '滚动均值'} · 胜率口径：卡方=20日胜率 / 皓兴=当日胜率</span>
       </div></div>
-    ${alertHtml}
     <div class="vcard" style="margin-top:12px"><div class="vhead">🔍 归因分析（区间 ${HIST.dates[0]} ~ ${HIST.dates[HIST.dates.length - 1]}）</div><div class="vbody">${attrHtml(code)}</div></div>`;
   // 绑定指标/周期切换
   el.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', () => { monMetric = b.dataset.m; renderMonPanel(); renderMonChart(); }));
@@ -698,7 +649,6 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
     btn.classList.add('active');
     document.getElementById('tab-' + btn.dataset.tab).classList.add('active');
     if (btn.dataset.tab === 'monitor') {
-      renderAlerts();
       renderGolden();
       if (monCode) { renderMonPanel(); renderMonChart(); }
     }
@@ -713,11 +663,6 @@ document.getElementById('chips').addEventListener('click', e => { const c = e.ta
 
 // Tab2 搜索
 makeSearch('monInput', 'monDropdown', selectMonStock);
-// Tab2 告警筛选
-document.querySelectorAll('#alertList').forEach(() => {});
-document.querySelectorAll('.vhead .seg-btn[data-f]').forEach(b => {
-  b.addEventListener('click', () => { monF = b.dataset.f; renderAlerts(); });
-});
 </script>
 </body>
 </html>
