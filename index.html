@@ -151,6 +151,7 @@
     <button class="tab-btn active" data-tab="query" data-page-node-id="TCCrGfGnReIoAe6oCCdFf7">🔍 算法对比查询</button>
     <button class="tab-btn" data-tab="monitor" data-page-node-id="MK4ceeecH1hBwkx8aVKOIA">📈 内部数据跟踪</button>
     <button class="tab-btn" data-tab="service">🤝 客户服务</button>
+    <button class="tab-btn" data-tab="etf">🏆 ETF精选T0池</button>
   </nav>
 
   <!-- ============ Tab1 算法对比查询 ============ -->
@@ -290,6 +291,23 @@
     </div>
   </section>
 
+  <!-- ============ Tab4 ETF精选T0池 ============ -->
+  <section id="tab-etf" class="tab-pane">
+    <div class="monitor-head">
+      <h2>🏆 ETF 精选 T0 池</h2>
+      <div class="sub" id="etfRule">三维度（20日收益率 · 开仓胜率 · 近20日开仓天数）min-max 标准化等权加权，取前 30</div>
+    </div>
+    <div class="vcard">
+      <div class="vhead">
+        ETF 精选池 Top 30
+        <span class="chart-legend">
+          <span class="ln">数据日期：<b id="etfDate">-</b></span>
+        </span>
+      </div>
+      <div id="etfRankList"><div class="no-data" style="padding:20px">加载中…</div></div>
+    </div>
+  </section>
+
   <footer data-page-node-id="n3sxbwjVr24atwWE2Ev6jj">
     数据来源：卡方（飞书文件夹 kf_日内回转plus_performance） · 皓兴（data.haoxingtrade.com HX_singleStockPnlSummary_CN）· 指数（新浪）<br data-page-node-id="HMNiciKnlFMKubUo0WJr9h">
     表中数据仅供参考，不同算法商指标口径不同，请勿直接横向对比数值量级
@@ -303,6 +321,9 @@
 <script>
 const DATA = window.T0_DATA;
 const stocks = DATA.stocks || {};
+const ETF = (DATA.etf) || null;
+const etfStocks = (ETF && ETF.stocks) || {};
+const etfRank = (ETF && ETF.rank) || [];
 const HIST = window.T0_HISTORY || null;
 const BENCH = window.T0_BENCHMARK || null;
 const IND = window.T0_INDUSTRY || null;
@@ -329,8 +350,11 @@ function makeSearch(inputId, ddId, onPick, filterSrc) {
     if (!q || !cands.length) { dd.classList.remove('show'); return; }
     dd.innerHTML = cands.map(([code, s], i) => {
       const tags = [];
-      if (s.kafang && Object.keys(s.kafang).length) tags.push('卡方');
-      if (s.haoxing && Object.keys(s.haoxing).length) tags.push('皓兴');
+      if (s.isEtf) { tags.push('ETF'); }
+      else {
+        if (s.kafang && Object.keys(s.kafang).length) tags.push('卡方');
+        if (s.haoxing && Object.keys(s.haoxing).length) tags.push('皓兴');
+      }
       return `<div class="dd-item ${i === activeIdx ? 'active' : ''}" data-i="${i}"><span class="code">${esc(code)}</span><span class="name">${esc(s.name || '')}</span><span class="src">${tags.join(' / ') || '无数据'}</span></div>`;
     }).join('');
     dd.classList.add('show');
@@ -434,6 +458,19 @@ function metricBlock(entry, vendor) {
   }).join('');
 }
 
+// ETF 指标展示(皓兴单家, 7列直显)
+const ETF_METRICS = ['20日收益率', '年初以来收益率', '开仓胜率', '近20日开仓天数', '当日收益率'];
+function etfMetricBlock(s) {
+  if (!s) return `<div class="no-data">暂无该 ETF 的回测数据</div>`;
+  return ETF_METRICS.map((label) => {
+    const raw = s[label];
+    const v = parsePct(raw);
+    // 近20日开仓天数 是"天数"不是百分比, 不做涨跌着色
+    const isDays = label === '近20日开仓天数';
+    return `<div class="metric"><div class="mlabel">${esc(label)}</div><div class="mval ${isDays ? 'flat' : (v == null ? 'flat' : cls(v))}">${raw ?? '—'}</div></div>`;
+  }).join('');
+}
+
 // 历史累计收益图(Tab1)
 function histBlock(code) {
   if (!HIST || !HIST.stocks[code]) return '';
@@ -465,20 +502,29 @@ function renderHist(code) {
 }
 
 function renderStock(code) {
-  const s = stocks[code];
+  const isEtf = !!etfStocks[code];
+  const s = stocks[code] || etfStocks[code];
   if (!s) return;
   const el = document.getElementById('result');
-  el.innerHTML = `
-    <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
-      <span class="dates">卡方: <b>${esc(DATA.kafang_date || '-')}</b><br>皓兴: <b>${esc(DATA.haoxing_date || '-')}</b></span></div>
-    ${histBlock(code)}
-    <div class="vcard" style="margin-top:16px"><div class="vhead">⚖️ 两家共有指标对比</div><div class="vbody">${compareRows(s) || '<div class="no-data">两家暂无共同指标数据</div>'}</div></div>
-    <div class="vendors">
-      <div class="vcard"><div class="vhead"><span class="tag tag-kf">卡方</span> 日内回转plus</div><div class="vbody">${metricBlock(s.kafang, 'kafang')}</div></div>
-      <div class="vcard"><div class="vhead"><span class="tag tag-hx">皓兴</span> 稳定T0</div><div class="vbody">${metricBlock(s.haoxing, 'haoxing')}</div></div>
-    </div>`;
+  if (isEtf) {
+    // ETF: 仅皓兴一家, 展示单家指标
+    el.innerHTML = `
+      <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
+        <span class="dates">ETF数据: <b>${esc((ETF && ETF.date) || '-')}</b></span></div>
+      <div class="vcard" style="margin-top:16px"><div class="vhead"><span class="tag tag-hx">皓兴</span> ETF T0</div><div class="vbody">${etfMetricBlock(s)}</div></div>`;
+  } else {
+    el.innerHTML = `
+      <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
+        <span class="dates">卡方: <b>${esc(DATA.kafang_date || '-')}</b><br>皓兴: <b>${esc(DATA.haoxing_date || '-')}</b></span></div>
+      ${histBlock(code)}
+      <div class="vcard" style="margin-top:16px"><div class="vhead">⚖️ 两家共有指标对比</div><div class="vbody">${compareRows(s) || '<div class="no-data">两家暂无共同指标数据</div>'}</div></div>
+      <div class="vendors">
+        <div class="vcard"><div class="vhead"><span class="tag tag-kf">卡方</span> 日内回转plus</div><div class="vbody">${metricBlock(s.kafang, 'kafang')}</div></div>
+        <div class="vcard"><div class="vhead"><span class="tag tag-hx">皓兴</span> 稳定T0</div><div class="vbody">${metricBlock(s.haoxing, 'haoxing')}</div></div>
+      </div>`;
+    renderHist(code);
+  }
   el.classList.add('show');
-  renderHist(code);
 }
 
 // ================= Tab2 内部数据跟踪 =================
@@ -647,6 +693,29 @@ function renderGolden() {
   }));
 }
 
+// ---------- ETF 精选 T0 池 ----------
+function etfRow(rank, r) {
+  const rkCls = rank <= 3 ? (rank === 1 ? 'top1' : rank === 2 ? 'top2' : 'top3') : '';
+  return `<div class="gold-row" data-code="${esc(r.code)}">
+      <span class="rank ${rkCls}">${rank + 1}</span>
+      <span class="gn"><span class="nm">${esc(r.name || '')}</span> <span class="cd">${esc(r.code)}</span></span>
+      <span class="gv2">胜率 ${esc(r.win)}</span>
+      <span class="gv2">开仓 ${esc(r.open)}天</span>
+      <span class="gv ${cls(parsePct(r.ret20))}">${esc(r.ret20)}</span>
+    </div>`;
+}
+function renderEtfRank() {
+  const el = document.getElementById('etfRankList');
+  const dEl = document.getElementById('etfDate');
+  if (!el) return;
+  if (dEl) dEl.textContent = (ETF && ETF.date) || '-';
+  if (!etfRank.length) { el.innerHTML = '<div class="no-data" style="padding:16px">暂无 ETF 数据</div>'; return; }
+  el.innerHTML = etfRank.map((r, i) => etfRow(i, r)).join('');
+  el.querySelectorAll('.gold-row').forEach(row => {
+    row.addEventListener('click', () => renderStock(row.dataset.code));
+  });
+}
+
 // ================= 初始化 =================
 document.getElementById('dateKf').textContent = DATA.kafang_date || '-';
 document.getElementById('dateHx').textContent = DATA.haoxing_date || '-';
@@ -660,6 +729,8 @@ function activateTab(name) {
   if (name === 'monitor') {
     renderGolden();
     if (monCode) { renderMonPanel(); renderMonChart(); }
+  } else if (name === 'etf') {
+    renderEtfRank();
   }
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -668,8 +739,12 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
 // 深链：直接用 #hu1~#hu5 打开「客户服务」对应话术
 if (/^#hu[1-5]$/.test(location.hash)) activateTab('service');
 
-// Tab1 搜索
-makeSearch('searchInput', 'dropdown', renderStock);
+// Tab1 搜索（股票 + ETF 合并源）
+// 构建合并搜索源: 给 ETF 项打 isEtf 标记
+const searchAll = {};
+for (const [code, s] of Object.entries(stocks)) searchAll[code] = s;
+for (const [code, s] of Object.entries(etfStocks)) searchAll[code] = Object.assign({ isEtf: true }, s);
+makeSearch('searchInput', 'dropdown', renderStock, searchAll);
 const demo = ['000001', '000002', '600519', '300750', '301520', '688260'];
 document.getElementById('chips').innerHTML = demo.map(c => stocks[c] ? `<button class="chip" data-c="${c}">${esc(c)} ${esc(stocks[c].name)}</button>` : '').join('');
 document.getElementById('chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) renderStock(c.dataset.c); });
