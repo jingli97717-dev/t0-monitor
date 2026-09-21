@@ -315,7 +315,6 @@
 </div>
 
 <script src="data.js"></script>
-<script src="history.js"></script>
 <script src="benchmark.js"></script>
 <script src="industry.js"></script>
 <script>
@@ -324,7 +323,7 @@ const stocks = DATA.stocks || {};
 const ETF = (DATA.etf) || null;
 const etfStocks = (ETF && ETF.stocks) || {};
 const etfRank = (ETF && ETF.rank) || [];
-const HIST = window.T0_HISTORY || null;
+let HIST = window.T0_HISTORY || null;
 const BENCH = window.T0_BENCHMARK || null;
 const IND = window.T0_INDUSTRY || null;
 
@@ -501,7 +500,9 @@ function renderHist(code) {
   });
 }
 
+let curQueryCode = null;
 function renderStock(code) {
+  curQueryCode = code;
   const isEtf = !!etfStocks[code];
   const s = stocks[code] || etfStocks[code];
   if (!s) return;
@@ -541,7 +542,7 @@ function trendData(code, metric, win) {
 function selectMonStock(code) {
   monCode = code;
   const s = stocks[code];
-  const rec = HIST.stocks[code];
+  const rec = HIST && HIST.stocks[code];
   if (!s && !rec) return;
   document.getElementById('monResult').classList.add('show');
   renderMonPanel();
@@ -549,9 +550,15 @@ function selectMonStock(code) {
 }
 function renderMonPanel() {
   const code = monCode;
-  const s = stocks[code] || { name: HIST.stocks[code]?.name || '' };
-  const rec = HIST.stocks[code];
+  const s = stocks[code] || { name: (HIST && HIST.stocks[code])?.name || '' };
+  const rec = HIST && HIST.stocks[code];
   const el = document.getElementById('monResult');
+  const histReady = HIST && HIST.stocks && HIST.stocks[code];
+  const attrHtml2 = histReady ? attrHtml(code) : '<div class="no-data" style="padding:12px">历史数据加载中，稍候…</div>';
+  const trendBody = histReady ? `
+      <div class="chart-body">
+        <svg id="monChartSvg"></svg><div class="chart-tip" id="monChartTip"></div>
+      </div>` : '<div class="no-data" style="padding:12px">历史数据加载中，稍候…</div>';
   el.innerHTML = `
     <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
       <span class="dates">卡方: <b>${esc(DATA.kafang_date || '-')}</b><br>皓兴: <b>${esc(DATA.haoxing_date || '-')}</b></span></div>
@@ -560,13 +567,11 @@ function renderMonPanel() {
         <span class="chart-legend">
           <span class="seg-btn" data-m="ret">收益率</span><span class="seg-btn" data-m="open">开仓率</span><span class="seg-btn" data-m="win">胜率</span>
         </span>
-      </div><div class="chart-body">
-        <svg id="monChartSvg"></svg><div class="chart-tip" id="monChartTip"></div>
-      </div><div class="chart-meta">
+      </div>${trendBody}<div class="chart-meta">
         <span>周期：<span class="seg-btn" data-w="日" style="margin:0 4px">日</span><span class="seg-btn" data-w="周" style="margin:0 4px">周</span><span class="seg-btn" data-w="月" style="margin:0 4px">月</span></span>
         <span>${monWin === '日' ? '日值' : monWin + '滚动均值'} · 胜率口径：卡方=20日胜率 / 皓兴=当日胜率</span>
       </div></div>
-    <div class="vcard" style="margin-top:12px"><div class="vhead">🔍 归因分析（区间 ${HIST.dates[0]} ~ ${HIST.dates[HIST.dates.length - 1]}）</div><div class="vbody">${attrHtml(code)}</div></div>`;
+    <div class="vcard" style="margin-top:12px"><div class="vhead">🔍 归因分析（区间 ${histReady ? HIST.dates[0] + ' ~ ' + HIST.dates[HIST.dates.length - 1] : '加载中'}）</div><div class="vbody">${attrHtml2}</div></div>`;
   // 绑定指标/周期切换
   el.querySelectorAll('[data-m]').forEach(b => b.addEventListener('click', () => { monMetric = b.dataset.m; renderMonPanel(); renderMonChart(); }));
   el.querySelectorAll('[data-w]').forEach(b => b.addEventListener('click', () => { monWin = b.dataset.w; renderMonPanel(); renderMonChart(); }));
@@ -574,7 +579,7 @@ function renderMonPanel() {
 function monMetricLabel() { return monMetric === 'ret' ? '收益率' : monMetric === 'open' ? '开仓率' : '胜率'; }
 function renderMonChart() {
   const svg = document.getElementById('monChartSvg');
-  if (!svg || !monCode || !HIST.stocks[monCode]) return;
+  if (!svg || !monCode || !HIST || !HIST.stocks[monCode]) return;
   const d = trendData(monCode, monMetric, monWin);
   renderChart(svg, document.getElementById('monChartTip'), {
     dates: HIST.dates,
@@ -751,6 +756,27 @@ document.getElementById('chips').addEventListener('click', e => { const c = e.ta
 
 // Tab2 搜索
 makeSearch('monInput', 'monDropdown', selectMonStock);
+
+// ================= 延迟加载历史数据 history.js =================
+// history.js 体积大(~10MB), 同步加载会阻塞搜索初始化导致"搜不了"。
+// 改为后台异步加载: 搜索(依赖 data.js)立即可用, 曲线/金股池在加载完成后补齐。
+(function loadHistory() {
+  const hs = document.createElement('script');
+  hs.src = 'history.js';
+  hs.onload = function () {
+    HIST = window.T0_HISTORY || null;
+    if (!HIST) return;
+    // 若当前在 monitor / etf tab, 刷新金股池; 若 Tab1 已选股, 补渲染曲线
+    const monPane = document.getElementById('tab-monitor');
+    if (monPane && monPane.classList.contains('active')) {
+      renderGolden();
+      if (monCode) { renderMonPanel(); renderMonChart(); }
+    }
+    if (curQueryCode) renderStock(curQueryCode);
+  };
+  hs.onerror = function () { console.warn('history.js 加载失败'); };
+  document.head.appendChild(hs);
+})();
 </script>
 </body>
 </html>
