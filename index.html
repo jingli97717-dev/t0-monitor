@@ -323,7 +323,23 @@ const stocks = DATA.stocks || {};
 const ETF = (DATA.etf) || null;
 const etfStocks = (ETF && ETF.stocks) || {};
 const etfRank = (ETF && ETF.rank) || [];
-let HIST = window.T0_HISTORY || null;
+// history.js 现为紧凑格式 {d:[dates], s:{code:[name,kf.ret,kf.open,kf.win,hx.ret,hx.open,hx.win]}}
+// 解码为 {dates, stocks:{code:{name,kf:{ret,open,win},hx:{ret,open,win}}}} 供前端使用
+function decodeHist(raw) {
+  if (!raw || !raw.d || !raw.s) return null;
+  const dates = raw.d;
+  const stocks = {};
+  for (const [code, v] of Object.entries(raw.s)) {
+    const dec = (s) => s.split(',').map(x => (x === '' ? null : parseFloat(x)));
+    stocks[code] = {
+      name: v[0],
+      kf: { ret: dec(v[1]), open: dec(v[2]), win: dec(v[3]) },
+      hx: { ret: dec(v[4]), open: dec(v[5]), win: dec(v[6]) },
+    };
+  }
+  return { dates, stocks };
+}
+let HIST = window.T0_HISTORY ? decodeHist(window.T0_HISTORY) : null;
 const BENCH = window.T0_BENCHMARK || null;
 const IND = window.T0_INDUSTRY || null;
 
@@ -764,7 +780,7 @@ makeSearch('monInput', 'monDropdown', selectMonStock);
   const hs = document.createElement('script');
   hs.src = 'history.js';
   hs.onload = function () {
-    HIST = window.T0_HISTORY || null;
+    HIST = decodeHist(window.T0_HISTORY);
     if (!HIST) return;
     // 若当前在 monitor / etf tab, 刷新金股池; 若 Tab1 已选股, 补渲染曲线
     const monPane = document.getElementById('tab-monitor');
