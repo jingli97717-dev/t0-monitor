@@ -153,6 +153,21 @@
   .wk-metric .wv { font-size: 22px; font-weight: 800; font-family: Consolas, Menlo, monospace; }
   .wk-metric .wsub { font-size: 11px; color: var(--muted); margin-top: 3px; }
   .weekly-meta { margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.7; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
+
+  /* 批量查询 */
+  .batch-hint { max-width: 560px; margin: 14px auto 0; text-align: center; font-size: 12px; color: var(--muted); }
+  .batch-hint b { color: var(--primary); font-weight: 600; }
+  .batch-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  .batch-table th { text-align: left; padding: 9px 10px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .batch-table td { padding: 9px 10px; border-bottom: 1px dashed var(--border); }
+  .batch-table tbody tr { cursor: pointer; transition: background .12s; }
+  .batch-table tbody tr:hover { background: var(--primary-light); }
+  .batch-table tbody tr:last-child td { border-bottom: none; }
+  .batch-table .bcode { font-family: Consolas, Menlo, monospace; color: var(--primary); font-size: 12px; white-space: nowrap; }
+  .batch-table .bname { font-weight: 600; }
+  .batch-table .num { font-family: Consolas, Menlo, monospace; font-weight: 600; white-space: nowrap; }
+  .batch-table .vendor-tag { font-size: 10px; padding: 1px 6px; border-radius: 999px; margin-right: 4px; }
+  .batch-empty { padding: 16px; color: var(--muted); font-size: 13px; }
 </style>
 </head>
 <body data-page-node-id="2IwBL0MCfVah78IxLZM2HX">
@@ -182,8 +197,10 @@
       </div>
       <div class="dropdown" id="dropdown" data-page-node-id="WmagV2DSBUR9eyElmk6j1p"></div>
     </div>
+    <div class="batch-hint">💡 批量查询：一次粘贴多个代码（用 <b>空格 / 逗号 / 换行</b> 分隔，如 <b>000001 000002 600519</b>），按回车即可同时查看多只股票的回测数据</div>
     <div class="chips" id="chips" data-page-node-id="FpGcfcAHhi5He6eaUVpfZV"></div>
     <div class="result" id="result" data-page-node-id="5T8Qm1IStc2Xk1FD5FeDxf"></div>
+    <div class="result" id="batchResult" data-page-node-id="batchResultNode"></div>
   </section>
 
   <!-- ============ Tab2 内部数据跟踪 ============ -->
@@ -586,7 +603,75 @@ function renderStock(code) {
   el.classList.add('show');
 }
 
-// ================= Tab2 内部数据跟踪 =================
+// ================= Tab1 批量查询 =================
+// 解析输入: 支持 空格/逗号/换行/分号 分隔多个 token, 每个 token 可为 6位代码 或 名称
+function parseBatchTokens(input) {
+  const raw = String(input || '').replace(/[,，;；\n\r\t]+/g, ' ').split(/\s+/).map(t => t.trim()).filter(Boolean);
+  return raw;
+}
+// 把 token 归一化到 code。优先精确匹配代码；否则按名称模糊匹配（唯一命中才返回）
+function resolveCode(token, src) {
+  const t = token.toUpperCase();
+  // 精确代码匹配(带/不带后缀)
+  if (src[t]) return t;
+  if (/^\d{6}$/.test(t)) {
+    const withSuffix = [t + '.SZ', t + '.SH', t + '.BJ'];
+    for (const c of withSuffix) if (src[c]) return c;
+  }
+  // 名称精确匹配
+  for (const [code, s] of Object.entries(src)) { if (s.name === token) return code; }
+  // 名称包含匹配(唯一命中)
+  let hit = null;
+  for (const [code, s] of Object.entries(src)) {
+    if (s.name && s.name.includes(token)) { if (hit) return null; hit = code; }
+  }
+  return hit;
+}
+function renderBatch(codes) {
+  const el = document.getElementById('batchResult');
+  const singleEl = document.getElementById('result');
+  if (!el) return;
+  if (singleEl) { singleEl.classList.remove('show'); singleEl.innerHTML = ''; }
+  curQueryCode = null;
+  const found = [], missing = [];
+  for (const c of codes) {
+    const s = stocks[c] || etfStocks[c];
+    if (s) found.push([c, s]); else missing.push(c);
+  }
+  if (!found.length) {
+    el.innerHTML = `<div class="vcard"><div class="vhead">📋 批量查询结果</div><div class="no-data">未找到任何匹配的股票（${esc(missing.join('、') || '')}）</div></div>`;
+    el.classList.add('show');
+    return;
+  }
+  const hasKf = found.some(([c, s]) => s.kafang && Object.keys(s.kafang).length);
+  const hasHx = found.some(([c, s]) => s.haoxing && Object.keys(s.haoxing).length);
+  const head = `<tr><th>代码</th><th>名称</th>${hasKf ? '<th>卡方·20日收益</th><th>卡方·当日收益</th>' : ''}${hasHx ? '<th>皓兴·20日收益</th><th>皓兴·开仓胜率</th>' : ''}</tr>`;
+  const rows = found.map(([code, s]) => {
+    const kf = s.kafang || {}, hx = s.haoxing || {};
+    const kv20 = parsePct(kf['20日收益率']), kvD = parsePct(kf['当日收益率']);
+    const hv20 = parsePct(hx['20日收益率']), hw = parsePct(hx['开仓胜率']);
+    const tags = s.isEtf ? '<span class="vendor-tag" style="background:#e0f2fe;color:#0369a1">ETF</span>'
+      : `<span class="vendor-tag" style="background:#ede7ff;color:#6d28d9">卡方</span><span class="vendor-tag" style="background:#e0f2fe;color:#0369a1">皓兴</span>`;
+    return `<tr data-code="${esc(code)}">
+      <td class="bcode">${esc(code)}</td>
+      <td class="bname">${esc(s.name || '')} ${tags}</td>
+      ${hasKf ? `<td class="num ${kv20 == null ? '' : cls(kv20)}">${kv20 == null ? '—' : fmtPct(kf['20日收益率'])}</td><td class="num ${kvD == null ? '' : cls(kvD)}">${kvD == null ? '—' : fmtPct(kf['当日收益率'])}</td>` : ''}
+      ${hasHx ? `<td class="num ${hv20 == null ? '' : cls(hv20)}">${hv20 == null ? '—' : fmtPct(hx['20日收益率'])}</td><td class="num">${hw == null ? '—' : fmtPct(hx['开仓胜率'])}</td>` : ''}
+    </tr>`;
+  }).join('');
+  const missHtml = missing.length ? `<div class="batch-empty">未匹配：${esc(missing.join('、'))}</div>` : '';
+  el.innerHTML = `<div class="vcard"><div class="vhead">📋 批量查询结果（${found.length} 只）<span class="chart-legend" style="font-size:11px;color:var(--muted)">点击行查看单股详情</span></div>
+    <div style="overflow-x:auto;padding:4px 12px 10px">
+      <table class="batch-table"><thead>${head}</thead><tbody>${rows}</tbody></table>
+      ${missHtml}
+    </div></div>`;
+  el.classList.add('show');
+  el.querySelectorAll('tbody tr').forEach(tr => {
+    tr.addEventListener('click', () => { const code = tr.dataset.code; el.classList.remove('show'); el.innerHTML = ''; renderStock(code); });
+  });
+}
+
+
 const MON_WIN = { '日': 1, '周': 5, '月': 20 };
 let monMetric = 'ret', monWin = '日', monCode = null;
 
@@ -899,6 +984,29 @@ const searchAll = {};
 for (const [code, s] of Object.entries(stocks)) searchAll[code] = s;
 for (const [code, s] of Object.entries(etfStocks)) searchAll[code] = Object.assign({ isEtf: true }, s);
 makeSearch('searchInput', 'dropdown', renderStock, searchAll);
+// 批量查询: 输入含多个 token(空格/逗号/换行分隔)时按回车批量查询
+(function bindBatchSearch() {
+  const input = document.getElementById('searchInput');
+  if (!input) return;
+  input.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const tokens = parseBatchTokens(input.value);
+    if (tokens.length <= 1) return; // 单 token 走下拉联想, 不触发批量
+    e.preventDefault();
+    e.stopPropagation();
+    const codes = [];
+    const unresolved = [];
+    for (const t of tokens) {
+      const c = resolveCode(t, searchAll);
+      if (c) codes.push(c); else unresolved.push(t);
+    }
+    if (!codes.length) { renderBatch([]); return; }
+    // 去重
+    const uniq = [...new Set(codes)];
+    renderBatch(uniq);
+    input.value = '';
+  });
+})();
 const demo = ['000001', '000002', '600519', '300750', '301520', '688260'];
 document.getElementById('chips').innerHTML = demo.map(c => stocks[c] ? `<button class="chip" data-c="${c}">${esc(c)} ${esc(stocks[c].name)}</button>` : '').join('');
 document.getElementById('chips').addEventListener('click', e => { const c = e.target.closest('.chip'); if (c) renderStock(c.dataset.c); });
