@@ -21,6 +21,9 @@
   header h1 { font-size: 22px; font-weight: 700; letter-spacing: .5px; }
   header .sub { color: var(--muted); font-size: 13px; margin-top: 6px; }
 
+  /* 风险提示 */
+  .risk-banner { max-width: 720px; margin: 0 auto 18px; text-align: center; background: #fffbeb; border: 1px solid #fde68a; color: #92400e; border-radius: 10px; padding: 9px 16px; font-size: 12.5px; line-height: 1.7; }
+
   /* Tabs */
   .tabs { display: flex; justify-content: center; gap: 8px; margin-bottom: 20px; flex-wrap: wrap; }
   .tab-btn { border: 1px solid var(--border); background: var(--card); color: var(--muted); border-radius: 999px; padding: 9px 24px; font-size: 14px; font-weight: 600; cursor: pointer; transition: all .15s; }
@@ -138,6 +141,18 @@
   .huashu-action { margin-top: 8px; font-size: 12px; color: #92400e; background: #fffbeb; border-left: 3px solid #f59e0b; padding: 8px 12px; border-radius: 6px; line-height: 1.7; }
 
   footer { margin-top: 40px; text-align: center; color: #9ca3af; font-size: 12px; line-height: 1.8; }
+
+  /* 周度汇总 */
+  .weekly-summary { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 6px; }
+  @media (max-width: 680px) { .weekly-summary { grid-template-columns: 1fr; } }
+  .wk-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; }
+  .wk-card .wk-head { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 15px; }
+  .wk-metric { padding: 12px 18px; border-bottom: 1px dashed var(--border); }
+  .wk-metric:last-child { border-bottom: none; }
+  .wk-metric .wl { font-size: 12px; color: var(--muted); margin-bottom: 5px; }
+  .wk-metric .wv { font-size: 22px; font-weight: 800; font-family: Consolas, Menlo, monospace; }
+  .wk-metric .wsub { font-size: 11px; color: var(--muted); margin-top: 3px; }
+  .weekly-meta { margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.7; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
 </style>
 </head>
 <body data-page-node-id="2IwBL0MCfVah78IxLZM2HX">
@@ -147,9 +162,12 @@
     <div class="sub" data-page-node-id="JFn5vAF63aHvQWGXu2e8La">卡方 vs 皓兴 算法回测数据 · 数据日期：卡方 <b id="dateKf" data-page-node-id="H16Hon7cUvjDmqYAFAGIye">-</b> / 皓兴 <b id="dateHx" data-page-node-id="HNmvbHArsAyJedvE8IXloQ">-</b></div>
   </header>
 
+  <div class="risk-banner">⚠️ 风险提示：回测数据不代表未来 T0 策略超额走势，仅供内部参考，严禁外传。</div>
+
   <nav class="tabs" data-page-node-id="U13nQOCwhhnNH8qyX3wDiL">
     <button class="tab-btn active" data-tab="query" data-page-node-id="TCCrGfGnReIoAe6oCCdFf7">🔍 算法对比查询</button>
     <button class="tab-btn" data-tab="monitor" data-page-node-id="MK4ceeecH1hBwkx8aVKOIA">📈 内部数据跟踪</button>
+    <button class="tab-btn" data-tab="weekly">📊 周度汇总</button>
     <button class="tab-btn" data-tab="service">🤝 客户服务</button>
     <button class="tab-btn" data-tab="etf">🏆 ETF精选T0池</button>
   </nav>
@@ -305,6 +323,30 @@
         </span>
       </div>
       <div id="etfRankList"><div class="no-data" style="padding:20px">加载中…</div></div>
+    </div>
+  </section>
+
+  <!-- ============ Tab5 周度汇总 ============ -->
+  <section id="tab-weekly" class="tab-pane">
+    <div class="monitor-head">
+      <h2>📊 周度汇总仪表盘</h2>
+      <div class="sub">卡方 · 皓兴 两套算法整体表现（最近 20 个交易日 · 全市场横截面聚合）</div>
+    </div>
+    <div class="vcard">
+      <div class="vhead">
+        🧭 算法整体指标
+        <span class="chart-legend">
+          <span class="ln"><span class="sw" style="background:#6d28d9"></span>卡方</span>
+          <span class="ln"><span class="sw" style="background:#0369a1"></span>皓兴</span>
+          <span class="ln">数据截至：<b id="weeklyDate">-</b></span>
+        </span>
+      </div>
+      <div style="padding:8px 18px 14px">
+        <div class="weekly-summary" id="weeklySummary">
+          <div class="no-data" style="grid-column:1/-1;padding:20px">历史数据加载中，稍候…</div>
+        </div>
+        <div class="weekly-meta" id="weeklyMeta"></div>
+      </div>
     </div>
   </section>
 
@@ -737,7 +779,96 @@ function renderEtfRank() {
   });
 }
 
-// ================= 初始化 =================
+// ================= Tab5 周度汇总 =================
+// 口径(最近20个交易日, 全市场横截面聚合, 两家算法独立):
+//  平均超额 = mean(每只股票近20日累计复利收益) - 同期沪深300涨幅
+//  开仓胜率 = mean(每只股票近20日盈利天数 / 有开仓天数)   [有开仓 = ret 非空]
+//  平均开仓天数 = mean(每只股票近20日有开仓的天数)
+function weeklyCalc(vendor) {
+  if (!HIST || !HIST.stocks || !HIST.dates) return null;
+  const dates = HIST.dates, n = dates.length;
+  const W = 20;
+  const start = Math.max(0, n - W);
+  const win = dates.slice(start); // 最近20日窗口
+  // 沪深300同期涨幅
+  let benchChg = null;
+  if (BENCH && BENCH.idx && BENCH.idx.hs300) {
+    const closes = BENCH.idx.hs300;
+    const first = closes[start], last = closes[n - 1];
+    if (first != null && last != null) benchChg = (last / first - 1) * 100;
+  }
+  let sumCum = 0, sumWin = 0, sumOpenDays = 0, cnt = 0, cntWin = 0;
+  for (const [code, rec] of Object.entries(HIST.stocks)) {
+    const arr = rec[vendor] && rec[vendor].ret;
+    if (!arr) continue;
+    const slice = arr.slice(start);
+    let f = 1, pos = 0, openDays = 0, any = false;
+    for (const v of slice) {
+      if (v == null) continue;
+      any = true;
+      f *= (1 + v / 100);
+      openDays++;
+      if (v > 0) pos++;
+    }
+    if (!any) continue; // 该窗口内无任何开仓记录, 跳过
+    sumCum += (f - 1) * 100;
+    cnt++;
+    if (openDays > 0) { sumWin += pos / openDays * 100; cntWin++; }
+    sumOpenDays += openDays;
+  }
+  if (!cnt) return null;
+  const avgCum = sumCum / cnt;
+  const avgExcess = benchChg != null ? avgCum - benchChg : null;
+  return {
+    avgExcess, benchChg,
+    winRate: cntWin ? sumWin / cntWin : null,
+    openDays: sumOpenDays / cnt,
+    stockCnt: cnt,
+    winStart: win[0], winEnd: win[win.length - 1], winLen: win.length,
+  };
+}
+function wkCard(title, vendor, tagCls, tagTxt, m) {
+  const ex = m.avgExcess;
+  const wr = m.winRate;
+  const od = m.openDays;
+  return `<div class="wk-card">
+    <div class="wk-head"><span class="tag ${tagCls}">${tagTxt}</span>${esc(title)}</div>
+    <div class="wk-metric"><div class="wl">平均超额（近20日 · 对沪深300）</div>
+      <div class="wv ${ex == null ? '' : (ex >= 0 ? 'up' : 'down')}">${ex == null ? '—' : fmtN(ex)}</div>
+      <div class="wsub">${m.benchChg == null ? '无指数基准' : '同期沪深300 ' + fmtN(m.benchChg)} · 覆盖 ${m.stockCnt} 只标的</div></div>
+    <div class="wk-metric"><div class="wl">开仓胜率（近20日平均）</div>
+      <div class="wv">${wr == null ? '—' : wr.toFixed(2) + '%'}</div>
+      <div class="wsub">盈利日 / 有开仓日（全市场均值）</div></div>
+    <div class="wk-metric"><div class="wl">平均开仓天数（近20日）</div>
+      <div class="wv">${od == null ? '—' : od.toFixed(1) + ' 天'}</div>
+      <div class="wsub">单标的近20日内有 T0 开仓的交易日数</div></div>
+  </div>`;
+}
+function renderWeekly() {
+  const el = document.getElementById('weeklySummary');
+  const metaEl = document.getElementById('weeklyMeta');
+  const dEl = document.getElementById('weeklyDate');
+  if (!el) return;
+  if (!HIST || !HIST.stocks || !HIST.dates) {
+    el.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:20px">历史数据未加载</div>';
+    return;
+  }
+  const kf = weeklyCalc('kf'), hx = weeklyCalc('hx');
+  if (dEl) dEl.textContent = (DATA.haoxing_date || DATA.kafang_date || '-');
+  if (!kf && !hx) { el.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:20px">暂无数据</div>'; return; }
+  let html = '';
+  if (kf) html += wkCard('卡方 · 日内回转plus', 'kf', 'tag-kf', '卡方', kf);
+  if (hx) html += wkCard('皓兴 · 稳定T0', 'hx', 'tag-hx', '皓兴', hx);
+  el.innerHTML = html;
+  if (metaEl) {
+    const m = kf || hx || {};
+    metaEl.innerHTML = `统计口径：最近 <b>${m.winLen || 20}</b> 个交易日（${m.winStart || '-'} ~ ${m.winEnd || '-'}）。<br>
+      平均超额 = 各标的近20日累计复利收益的均值 − 同期沪深300涨跌幅；开仓胜率 = 各标的「盈利日 / 有开仓日」的均值；平均开仓天数 = 各标的近20日内有 T0 开仓记录的天数均值。<br>
+      ⚠️ 回测数据不代表未来，仅供内部参考，严禁外传。`;
+  }
+}
+
+
 document.getElementById('dateKf').textContent = DATA.kafang_date || '-';
 document.getElementById('dateHx').textContent = DATA.haoxing_date || '-';
 
@@ -752,6 +883,8 @@ function activateTab(name) {
     if (monCode) { renderMonPanel(); renderMonChart(); }
   } else if (name === 'etf') {
     renderEtfRank();
+  } else if (name === 'weekly') {
+    renderWeekly();
   }
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -782,12 +915,14 @@ makeSearch('monInput', 'monDropdown', selectMonStock);
   hs.onload = function () {
     HIST = decodeHist(window.T0_HISTORY);
     if (!HIST) return;
-    // 若当前在 monitor / etf tab, 刷新金股池; 若 Tab1 已选股, 补渲染曲线
+    // 若当前在 monitor / etf / weekly tab, 刷新对应面板; 若 Tab1 已选股, 补渲染曲线
     const monPane = document.getElementById('tab-monitor');
     if (monPane && monPane.classList.contains('active')) {
       renderGolden();
       if (monCode) { renderMonPanel(); renderMonChart(); }
     }
+    const wkPane = document.getElementById('tab-weekly');
+    if (wkPane && wkPane.classList.contains('active')) renderWeekly();
     if (curQueryCode) renderStock(curQueryCode);
   };
   hs.onerror = function () { console.warn('history.js 加载失败'); };
