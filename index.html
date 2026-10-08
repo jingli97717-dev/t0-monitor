@@ -377,7 +377,34 @@
 <script src="benchmark.js"></script>
 <script src="industry.js"></script>
 <script>
-const DATA = window.T0_DATA;
+// data.js 现为紧凑格式:
+//   { g:"生成时间", kd:"卡方日期", hd:"皓兴日期",
+//     s:{code:[name,kf20,kf20开仓率,kf年化,kf周期开仓率,kf当日,hx20,hx年初,hx胜率,hx开仓天数,hx当日]},
+//     e:{date, s:{code:[name,ret20,ytd,win,open_days,latest]}, r:[[code,name,ret20,win,open,score],...]} }
+// 解码还原成原结构 {stocks:{code:{name,kafang{...},haoxing{...}}}, etf:{...}, kafang_date, haoxing_date, generated_at}
+function decodeData(raw) {
+  if (!raw || !raw.s) return raw;
+  const pct = (v) => (v == null || v === '' ? '' : v + '%');  // 百分比字段加回 %
+  const stocks = {};
+  for (const [code, v] of Object.entries(raw.s)) {
+    stocks[code] = {
+      name: v[0],
+      kafang: { '20日收益率': pct(v[1]), '20日开仓率': pct(v[2]), '年化收益率': pct(v[3]), '周期开仓率': pct(v[4]), '当日收益率': pct(v[5]) },
+      haoxing: { '20日收益率': pct(v[6]), '年初以来收益率': pct(v[7]), '开仓胜率': pct(v[8]), '近20日开仓天数': (v[9] == null ? '' : v[9]), '当日收益率': pct(v[10]) },
+    };
+  }
+  let etf = null;
+  if (raw.e) {
+    const eStocks = {};
+    for (const [code, v] of Object.entries(raw.e.s)) {
+      eStocks[code] = { name: v[0], '20日收益率': pct(v[1]), '年初以来收益率': pct(v[2]), '开仓胜率': pct(v[3]), '近20日开仓天数': (v[4] == null ? '' : v[4]), '当日收益率': pct(v[5]) };
+    }
+    const rank = (raw.e.r || []).map(r => ({ code: r[0], name: r[1], ret20: pct(r[2]), win: pct(r[3]), open: (r[4] == null ? '' : r[4]), score: r[5] }));
+    etf = { date: raw.e.date, stocks: eStocks, rank };
+  }
+  return { generated_at: raw.g, kafang_date: raw.kd, haoxing_date: raw.hd, stocks, etf };
+}
+const DATA = decodeData(window.T0_DATA);
 const stocks = DATA.stocks || {};
 const ETF = (DATA.etf) || null;
 const etfStocks = (ETF && ETF.stocks) || {};
