@@ -894,8 +894,10 @@ function renderEtfRank() {
 // ================= Tab5 周度汇总 =================
 // 口径(最近20个交易日, 全市场横截面聚合, 两家算法独立):
 //  平均超额 = mean(每只股票近20日累计复利收益) - 同期沪深300涨幅
-//  开仓胜率 = mean(每只股票近20日盈利天数 / 有开仓天数)   [有开仓 = ret 非空]
+//  开仓胜率 = mean(每只股票近20日盈利天数 / 有开仓天数)   [有开仓 = open(开仓率) > 0]
 //  平均开仓天数 = mean(每只股票近20日有开仓的天数)
+//  ⚠️ 重要: history.js 里 ret 序列中"未开仓日"存的是 0 而非 null,
+//     故不能用 ret 的 null 判断开仓, 必须用 open(开仓率)>0 判断, 否则胜率严重失真。
 function weeklyCalc(vendor) {
   if (!HIST || !HIST.stocks || !HIST.dates) return null;
   const dates = HIST.dates, n = dates.length;
@@ -911,16 +913,19 @@ function weeklyCalc(vendor) {
   }
   let sumCum = 0, sumWin = 0, sumOpenDays = 0, cnt = 0, cntWin = 0;
   for (const [code, rec] of Object.entries(HIST.stocks)) {
-    const arr = rec[vendor] && rec[vendor].ret;
-    if (!arr) continue;
-    const slice = arr.slice(start);
+    const retArr = rec[vendor] && rec[vendor].ret;
+    const openArr = rec[vendor] && rec[vendor].open;
+    if (!retArr || !openArr) continue;
     let f = 1, pos = 0, openDays = 0, any = false;
-    for (const v of slice) {
-      if (v == null) continue;
+    for (let i = start; i < n; i++) {
+      const o = openArr[i];
+      if (o == null || o <= 0) continue; // 未开仓(开仓率=0或缺失)跳过
+      const r = retArr[i];
       any = true;
-      f *= (1 + v / 100);
+      const rv = (r == null ? 0 : r);
+      f *= (1 + rv / 100);
       openDays++;
-      if (v > 0) pos++;
+      if (rv > 0) pos++;
     }
     if (!any) continue; // 该窗口内无任何开仓记录, 跳过
     sumCum += (f - 1) * 100;
@@ -975,7 +980,7 @@ function renderWeekly() {
   if (metaEl) {
     const m = kf || hx || {};
     metaEl.innerHTML = `统计口径：最近 <b>${m.winLen || 20}</b> 个交易日（${m.winStart || '-'} ~ ${m.winEnd || '-'}）。<br>
-      平均超额 = 各标的近20日累计复利收益的均值 − 同期沪深300涨跌幅；开仓胜率 = 各标的「盈利日 / 有开仓日」的均值；平均开仓天数 = 各标的近20日内有 T0 开仓记录的天数均值。<br>
+      平均超额 = 各标的近20日累计复利收益的均值 − 同期沪深300涨跌幅；开仓胜率 = 各标的「盈利日 / 有开仓日」的均值（有开仓 = 开仓率 > 0）；平均开仓天数 = 各标的近20日内有 T0 开仓记录的天数均值。<br>
       ⚠️ 回测数据不代表未来，仅供内部参考，严禁外传。`;
   }
 }
