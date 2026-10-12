@@ -1038,7 +1038,10 @@ makeSearch('monInput', 'monDropdown', selectMonStock);
 // 改为后台异步加载: 搜索(依赖 data.js)立即可用, 曲线/金股池在加载完成后补齐。
 (function loadHistory() {
   const hs = document.createElement('script');
-  hs.src = 'history.js';
+  // history.js 体积大(~6.5MB), GitHub Pages 不 gzip 导致国内加载极慢(~72s)。
+  // 改从 jsDelivr CDN 加载(gzip 压缩, 2MB, ~7s), 域名不变, CDN 自动同步 GitHub 仓库 main 分支。
+  hs.src = 'https://cdn.jsdelivr.net/gh/jingli97717-dev/t0-monitor@main/history.js';
+  hs.crossOrigin = 'anonymous';
   hs.onload = function () {
     HIST = decodeHist(window.T0_HISTORY);
     if (!HIST) return;
