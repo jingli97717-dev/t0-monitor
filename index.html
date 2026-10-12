@@ -370,8 +370,8 @@
       <div class="vhead">
         📈 过去 60 个工作日 · 授权市值与交易量
         <span class="chart-legend">
-          <span class="ln"><span class="sw" style="background:#2563eb"></span>当日授权市值(亿元,左轴)</span>
-          <span class="ln"><span class="sw" style="background:#f59e0b"></span>交易量(亿元,右轴)</span>
+          <span class="ln"><span class="sw" style="background:#2563eb"></span>当日授权市值(亿元,左轴·折线)</span>
+          <span class="ln"><span class="sw" style="background:#f59e0b"></span>交易量(亿元,右轴·柱状)</span>
         </span>
       </div>
       <div class="chart-body">
@@ -385,8 +385,8 @@
       <div class="vhead">
         📈 过去 60 个工作日 · 策略开仓率与平均绩效
         <span class="chart-legend">
-          <span class="ln"><span class="sw" style="background:#6d28d9"></span>策略开仓率(%,左轴)</span>
-          <span class="ln"><span class="sw" style="background:#059669"></span>平均绩效(‰,右轴)</span>
+          <span class="ln"><span class="sw" style="background:#6d28d9"></span>策略开仓率(%,左轴·折线)</span>
+          <span class="ln"><span class="sw" style="background:#059669"></span>平均绩效(‰,右轴·柱状,0轴起点)</span>
         </span>
       </div>
       <div class="chart-body">
@@ -1047,12 +1047,16 @@ function renderPerfChart(svgEl, tipEl, opts) {
     const pts = data.map((v, i) => (v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`)).filter(Boolean).join(' ');
     return pts ? `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>` : '';
   };
-  // 柱状系列: 以该轴 0 值(无0值轴则轴底)为基准, 正值向上/负值向下
+  // 柱状系列: zeroBased 时以 0 轴为基准(正向上/负向下), 否则以轴底为基准(柱从底部向上)
   const mkBar = (data, color, Y, zeroBased) => {
-    let yBase = zeroBased ? Y(Math.min(0, Math.max(...data))) : Y(Math.min(...data));
-    // zeroBased 且数据可跨 0: 基准取 Y(0); 否则基准取轴底(即 data 最小值对应的 y)
-    if (zeroBased) { yBase = Y(0); }
-    else { yBase = Y(Math.min(...data)); }
+    // 基准 y 值
+    let baseVal = 0;
+    if (zeroBased) {
+      baseVal = 0;
+    } else {
+      baseVal = Math.min(...data); // 全正数据: 轴底
+    }
+    const yBase = Y(baseVal);
     const bw = Math.max(2, iw / n * 0.6);
     let bars = '';
     for (let i = 0; i < n; i++) {
@@ -1064,10 +1068,18 @@ function renderPerfChart(svgEl, tipEl, opts) {
     }
     return bars;
   };
+  // 0 轴参考线(仅在 zeroBased 且数据跨 0 时画, 凸显"以 0 为起点")
+  const zeroLine = (data, Y, zeroBased) => {
+    if (!zeroBased) return '';
+    const mn = Math.min(...data), mx = Math.max(...data);
+    if (!(mn < 0 && mx > 0)) return '';
+    return `<line x1="${L}" y1="${Y(0).toFixed(1)}" x2="${L + iw}" y2="${Y(0).toFixed(1)}" stroke="#94a3b8" stroke-width="1"/>`;
+  };
   const leftMarkup = opts.left.type === 'bar' ? mkBar(opts.left.data, opts.left.color, YL, opts.left.zeroBased) : mkLine(opts.left.data, opts.left.color, YL);
   const rightMarkup = opts.right.type === 'bar' ? mkBar(opts.right.data, opts.right.color, YR, opts.right.zeroBased) : mkLine(opts.right.data, opts.right.color, YR);
+  const zeroMarkup = zeroLine(opts.right.data, YR, opts.right.zeroBased) + zeroLine(opts.left.data, YL, opts.left.zeroBased);
   svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svgEl.innerHTML = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="transparent"/>${grid}${xl}${leftMarkup}${rightMarkup}`;
+  svgEl.innerHTML = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="transparent"/>${grid}${zeroMarkup}${xl}${leftMarkup}${rightMarkup}`;
 
   // hover: 双系列, 左轴系列前缀 L, 右轴系列前缀 R
   const rect = svgEl.getBoundingClientRect();
