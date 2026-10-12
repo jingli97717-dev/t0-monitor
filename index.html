@@ -1006,9 +1006,9 @@ function renderWeekly() {
 // ================= Tab5 周度汇总 · 鑫奕胜绩效 60 日趋势图 =================
 // 数据源: 鑫奕胜 T0 绩效分析表(最近60个工作日), 由 perf60.js 注入 window.T0_PERF60
 //   { d:[日期], mkt:[当日授权市值(亿)], vol:[交易量(亿)], op:[开仓率(%)], pf:[平均绩效(‰)] }
-// 双 Y 轴 SVG 图: 左轴(蓝) + 右轴(橙/绿), 复用 renderChart 的视觉风格
+// 双 Y 轴 SVG 图: 左轴 + 右轴, 支持折线(line) / 柱状(bar) 混合, 复用 renderChart 的视觉风格
 function renderPerfChart(svgEl, tipEl, opts) {
-  // opts: {dates, left:{name,color,data,yFmt}, right:{name,color,data,yFmt}, height}
+  // opts: {dates, left:{name,color,data,yFmt,type?,zeroBased?}, right:{...同left}, height}
   const H = opts.height || 260, W = 680, L = 52, R = 52, T = 18, B = 30;
   const iw = W - L - R, ih = H - T - B;
   const n = opts.dates.length;
@@ -1018,6 +1018,10 @@ function renderPerfChart(svgEl, tipEl, opts) {
   let rmin = Math.min(...rf), rmax = Math.max(...rf);
   if (!isFinite(lmin)) { lmin = -1; lmax = 1; }
   if (!isFinite(rmin)) { rmin = -1; rmax = 1; }
+  // 左轴 zeroBased 处理
+  if (opts.left.zeroBased) { if (lmin > 0) lmin = 0; if (lmax < 0) lmax = 0; }
+  // 右轴 zeroBased 处理
+  if (opts.right.zeroBased) { if (rmin > 0) rmin = 0; if (rmax < 0) rmax = 0; }
   const lpad = (lmax - lmin) * 0.12 || 0.1, rpad = (rmax - rmin) * 0.12 || 0.1;
   lmin -= lpad; lmax += lpad; rmin -= rpad; rmax += rpad;
   const X = i => L + (n === 1 ? iw / 2 : i * iw / (n - 1));
@@ -1038,12 +1042,32 @@ function renderPerfChart(svgEl, tipEl, opts) {
   for (let i = 0; i < n; i += xStep) { xl += `<text x="${X(i)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#9ca3af">${opts.dates[i].slice(4, 6)}-${opts.dates[i].slice(6)}</text>`; }
   xl += `<text x="${X(n - 1)}" y="${H - 8}" text-anchor="middle" font-size="11" fill="#9ca3af">${opts.dates[n - 1].slice(4, 6)}-${opts.dates[n - 1].slice(6)}</text>`;
 
+  // 折线系列
   const mkLine = (data, color, Y) => {
     const pts = data.map((v, i) => (v == null ? null : `${X(i).toFixed(1)},${Y(v).toFixed(1)}`)).filter(Boolean).join(' ');
     return pts ? `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="2.2" stroke-linejoin="round" stroke-linecap="round"/>` : '';
   };
+  // 柱状系列: 以该轴 0 值(无0值轴则轴底)为基准, 正值向上/负值向下
+  const mkBar = (data, color, Y, zeroBased) => {
+    let yBase = zeroBased ? Y(Math.min(0, Math.max(...data))) : Y(Math.min(...data));
+    // zeroBased 且数据可跨 0: 基准取 Y(0); 否则基准取轴底(即 data 最小值对应的 y)
+    if (zeroBased) { yBase = Y(0); }
+    else { yBase = Y(Math.min(...data)); }
+    const bw = Math.max(2, iw / n * 0.6);
+    let bars = '';
+    for (let i = 0; i < n; i++) {
+      const v = data[i];
+      if (v == null) continue;
+      const yv = Y(v);
+      const yTop = Math.min(yv, yBase), h = Math.max(1, Math.abs(yv - yBase));
+      bars += `<rect x="${(X(i) - bw / 2).toFixed(1)}" y="${yTop.toFixed(1)}" width="${bw.toFixed(1)}" height="${h.toFixed(1)}" fill="${color}" opacity="0.85"/>`;
+    }
+    return bars;
+  };
+  const leftMarkup = opts.left.type === 'bar' ? mkBar(opts.left.data, opts.left.color, YL, opts.left.zeroBased) : mkLine(opts.left.data, opts.left.color, YL);
+  const rightMarkup = opts.right.type === 'bar' ? mkBar(opts.right.data, opts.right.color, YR, opts.right.zeroBased) : mkLine(opts.right.data, opts.right.color, YR);
   svgEl.setAttribute('viewBox', `0 0 ${W} ${H}`);
-  svgEl.innerHTML = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="transparent"/>${grid}${xl}${mkLine(opts.left.data, opts.left.color, YL)}${mkLine(opts.right.data, opts.right.color, YR)}`;
+  svgEl.innerHTML = `<rect x="${L}" y="${T}" width="${iw}" height="${ih}" fill="transparent"/>${grid}${xl}${leftMarkup}${rightMarkup}`;
 
   // hover: 双系列, 左轴系列前缀 L, 右轴系列前缀 R
   const rect = svgEl.getBoundingClientRect();
@@ -1075,12 +1099,12 @@ function renderPerf60() {
   renderPerfChart(svg1, document.getElementById('perfTip1'), {
     dates: P.d,
     left:  { name: '授权市值', color: '#2563eb', data: P.mkt, yFmt: v => v.toFixed(1) },
-    right: { name: '交易量',   color: '#f59e0b', data: P.vol, yFmt: v => v.toFixed(1) },
+    right: { name: '交易量',   color: '#f59e0b', data: P.vol, yFmt: v => v.toFixed(1), type: 'bar', zeroBased: true },
   });
   renderPerfChart(svg2, document.getElementById('perfTip2'), {
     dates: P.d,
     left:  { name: '开仓率', color: '#6d28d9', data: P.op, yFmt: v => v.toFixed(1) + '%' },
-    right: { name: '平均绩效', color: '#059669', data: P.pf, yFmt: v => v.toFixed(2) + '‰' },
+    right: { name: '平均绩效', color: '#059669', data: P.pf, yFmt: v => v.toFixed(2) + '‰', type: 'bar', zeroBased: true },
   });
 }
 
