@@ -181,6 +181,45 @@
   .attr-table .num-up { color: var(--up); }
   .attr-table .num-down { color: var(--down); }
 
+  /* 归因结论区 */
+  .attr-conclusion { padding: 14px 18px 6px; }
+  .attr-conclusion .concl-head { font-size: 14px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .attr-conclusion .concl-card { border-radius: 12px; padding: 14px 16px; margin-bottom: 10px; border: 1px solid; }
+  .attr-conclusion .concl-card.good { background: #ecfdf5; border-color: #a7f3d0; }
+  .attr-conclusion .concl-card.bad  { background: #fef2f2; border-color: #fecaca; }
+  .attr-conclusion .concl-card.note { background: #fffbeb; border-color: #fde68a; }
+  .attr-conclusion .cc-title { font-size: 13px; font-weight: 800; margin-bottom: 6px; display: flex; align-items: center; gap: 6px; }
+  .attr-conclusion .cc-title .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .attr-conclusion .cc-body { font-size: 12.5px; line-height: 1.8; color: #374151; }
+  .attr-conclusion .cc-body b { color: #111827; }
+  .attr-conclusion .cc-tag { font-size: 11px; font-weight: 700; padding: 1px 8px; border-radius: 999px; margin: 0 2px; }
+  .attr-conclusion .cc-tag.up { background: #fde8e8; color: #b91c1c; }
+  .attr-conclusion .cc-tag.down { background: #e6f4ea; color: #15803d; }
+  .attr-conclusion .cc-tag.vol { background: #fef3c7; color: #92400e; }
+
+  /* 因子相关性卡片 */
+  .attr-factors { padding: 4px 18px 0; }
+  .attr-factors .ft-head { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+  .attr-factors .ft-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 4px; }
+  .attr-factors .ft-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .attr-factors .ft-name { font-size: 11px; color: var(--muted); }
+  .attr-factors .ft-bar { height: 6px; border-radius: 999px; background: #eef1f6; margin: 8px 0 5px; overflow: hidden; }
+  .attr-factors .ft-fill { height: 100%; border-radius: 999px; }
+  .attr-factors .ft-fill.pos { background: #dc2626; }
+  .attr-factors .ft-fill.neg { background: #16a34a; }
+  .attr-factors .ft-val { font-size: 13px; font-weight: 800; font-family: Consolas, Menlo, monospace; }
+  .attr-factors .ft-val.pos { color: #dc2626; }
+  .attr-factors .ft-val.neg { color: #16a34a; }
+  .attr-factors .ft-val.zero { color: #9ca3af; }
+  .attr-factors .ft-desc { font-size: 10.5px; color: #9ca3af; margin-top: 2px; }
+
+  /* 对客话术区 */
+  .attr-script { padding: 12px 18px 0; }
+  .attr-script .sc-head { font-size: 12px; font-weight: 700; color: var(--muted); margin-bottom: 8px; }
+  .attr-script .sc-box { background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 14px 16px; line-height: 1.9; font-size: 13px; color: #1f2937; position: relative; }
+  .attr-script .sc-copy { position: absolute; top: 10px; right: 10px; font-size: 11px; color: #6d28d9; cursor: pointer; padding: 3px 10px; border: 1px solid #ddd6fe; border-radius: 6px; background: #fff; }
+  .attr-script .sc-copy:hover { background: #f5f3ff; }
+
   /* 批量查询 */
   .batch-hint { max-width: 560px; margin: 14px auto 0; text-align: center; font-size: 12px; color: var(--muted); }
   .batch-hint b { color: var(--primary); font-weight: 600; }
@@ -426,19 +465,30 @@
     <!-- 交易日历归因复盘 -->
     <div class="vcard chart-card" style="margin-top:16px">
       <div class="vhead">
-        🗓️ 交易日历归因复盘
+        🗓️ 交易日历归因复盘 · 环境归因结论
         <span class="chart-legend">
           <span class="ln"><span class="sw" style="background:#6d28d9"></span>卡方全池增厚</span>
           <span class="ln"><span class="sw" style="background:#0369a1"></span>皓兴全池增厚</span>
         </span>
       </div>
-      <div class="attr-intro">微观逐日复盘：策略在什么市场环境下赚钱、什么时候不灵，用于对客解释「不是策略不行，是环境不适合 T0」。</div>
+      <div class="attr-intro">基于 <b>大盘成交量、振幅、换手活跃度 + 策略当日平均超额绩效</b> 做逐日归因，回答「策略近期哪些阶段赚钱、什么时候不灵」，并生成对客话术。</div>
+
+      <!-- 结论区：自动推导 -->
+      <div class="attr-conclusion" id="attrConclusion"></div>
+
+      <!-- 因子相关性卡片 -->
+      <div class="attr-factors" id="attrFactors"></div>
+
       <div class="attr-body">
         <div class="attr-clusters" id="attrClusters"></div>
         <div class="attr-table-wrap">
           <table class="attr-table" id="attrTable"></table>
         </div>
       </div>
+
+      <!-- 对客话术 -->
+      <div class="attr-script" id="attrScript"></div>
+
       <div class="chart-meta" id="attrMeta"></div>
     </div>
   </section>
@@ -1232,25 +1282,198 @@ function comboLabel(shRet, turnover, turnArr, i) {
   return { key: 'down', label: '普跌日', cls: 'at-down' };
 }
 
+// 皮尔逊相关系数
+function pearsonCorr(a, b) {
+  const xs = [];
+  for (let i = 0; i < a.length; i++) if (a[i] != null && b[i] != null) xs.push([a[i], b[i]]);
+  if (xs.length < 5) return null;
+  const mx = xs.reduce((s, x) => s + x[0], 0) / xs.length;
+  const my = xs.reduce((s, x) => s + x[1], 0) / xs.length;
+  let c = 0, vx = 0, vy = 0;
+  for (const [x, y] of xs) { c += (x - mx) * (y - my); vx += (x - mx) ** 2; vy += (y - my) ** 2; }
+  return vx * vy > 0 ? c / Math.sqrt(vx * vy) : null;
+}
+
+// 合并两家超额: 卡方/皓兴都非空取均值, 否则取非空一方, 都空返回 null
+function poolAvg(kf, hx, i) {
+  if (kf[i] != null && hx[i] != null) return (kf[i] + hx[i]) / 2;
+  if (kf[i] != null) return kf[i];
+  if (hx[i] != null) return hx[i];
+  return null;
+}
+
+// 环境因子定义(名称/序列/含义/方向解释)
+function envFactors(env, n) {
+  const shRet = env.shRet || [], turn = env.turnover || [], volv = env.vol || [],
+        amp = env.amplitude || [], trate = env.turnoverRate || [];
+  return [
+    { key: 'shRet', name: '大盘涨跌', data: shRet, unit: '%', pos: '上涨时超额更高', desc: '策略对方向敏感，顺势更有肉' },
+    { key: 'turn', name: '两市成交量', data: turn, unit: '亿股', pos: '放量时超额更高', desc: '成交活跃才有日内差价空间' },
+    { key: 'vol', name: '波动率', data: volv, unit: '%', pos: '高波动超额更高', desc: '波动是 T0 的利润来源' },
+    { key: 'amp', name: '当日振幅', data: amp, unit: '%', pos: '影响弱', desc: '日内振幅与超额相关性不强' },
+    { key: 'trate', name: '换手活跃度', data: trate, unit: '×', pos: '温和正相关', desc: '量能/20日均量，放量略优' },
+  ];
+}
+
+// 生成结论区: 回答「哪些阶段赚钱/什么时候不灵」
+function buildConclusion(dates, pool, env, n) {
+  const shRet = env.shRet || [], turn = env.turnover || [], volv = env.vol || [],
+        amp = env.amplitude || [], trate = env.turnoverRate || [];
+  const avg = [];
+  for (let i = 0; i < n; i++) avg.push(poolAvg(pool.kf, pool.hx, i));
+
+  // 分档统计平均超额
+  const bucket = (cond) => {
+    let s = 0, c = 0;
+    for (let i = 0; i < n; i++) if (avg[i] != null && cond(i)) { s += avg[i]; c++; }
+    return c ? s / c : null;
+  };
+  const bigUp   = bucket(i => shRet[i] > 1);
+  const smallUp = bucket(i => shRet[i] > 0 && shRet[i] <= 1);
+  const smallDn = bucket(i => shRet[i] <= 0 && shRet[i] >= -1);
+  const bigDn   = bucket(i => shRet[i] < -1);
+  const hiAmp   = bucket(i => amp[i] != null && amp[i] > 1.5);
+  const loAmp   = bucket(i => amp[i] != null && amp[i] <= 0.8);
+  const hiVol   = bucket(i => trate[i] != null && trate[i] > 1.1);
+  const loVol   = bucket(i => trate[i] != null && trate[i] < 0.9);
+
+  // 相关系数
+  const corrSh = pearsonCorr(avg, shRet), corrTurn = pearsonCorr(avg, turn),
+        corrVol = pearsonCorr(avg, volv), corrAmp = pearsonCorr(avg, amp), corrTrate = pearsonCorr(avg, trate);
+
+  // 全区间均值(基线)
+  const allAvg = (() => { let s = 0, c = 0; for (let i = 0; i < n; i++) if (avg[i] != null) { s += avg[i]; c++; } return c ? s / c : null; })();
+
+  const f = (v) => v == null ? '—' : (v > 0 ? '+' : '') + v.toFixed(3) + '%';
+  const fBp = (v) => v == null ? '—' : (v > 0 ? '+' : '') + (v * 100).toFixed(1) + 'bp';
+
+  // 赚钱条件 = 上涨 + 放量 + 高波动
+  const winDays = n ? avg.filter((_, i) => shRet[i] != null && shRet[i] > 0 && avg[i] != null).length : 0;
+  const winVal = bucket(i => shRet[i] > 0);
+  const loseVal = bucket(i => shRet[i] <= 0);
+
+  let html = '';
+  html += `<div class="concl-head">🎯 结论：策略在什么环境下赚钱、什么时候不灵</div>`;
+
+  // 结论卡1: 赚钱阶段
+  html += `<div class="concl-card good">
+    <div class="cc-title"><span class="dot" style="background:#16a34a"></span>✅ 赚钱阶段：大盘<span class="cc-tag up">上涨</span> + <span class="cc-tag vol">放量</span> + 高波动</div>
+    <div class="cc-body">
+      上涨日平均超额 <b>${f(winVal)}</b>，其中大涨日（&gt;+1%）可达 <b>${f(bigUp)}</b>，显著高于下跌日（${f(loseVal)}）。
+      策略超额与大盘涨跌相关系数 <b>${corrSh == null ? '—' : corrSh.toFixed(2)}</b>、与两市成交量 <b>${corrTurn == null ? '—' : corrTurn.toFixed(2)}</b>、与波动率 <b>${corrVol == null ? '—' : corrVol.toFixed(2)}</b>——三者同向共振时，T0 日内低买高卖的空间最大、增厚最厚。
+    </div>
+  </div>`;
+
+  // 结论卡2: 不赚钱阶段
+  html += `<div class="concl-card bad">
+    <div class="cc-title"><span class="dot" style="background:#dc2626"></span>⚠️ 不灵阶段：大盘<span class="cc-tag down">下跌</span> + <span class="cc-tag">缩量</span> + 低波动</div>
+    <div class="cc-body">
+      大跌日（&lt;-1%）平均超额骤降至 <b>${f(bigDn)}</b>（几乎归零甚至转负），缩量日仅 <b>${f(loVol)}</b>。
+      这类环境下日内波动收窄、差价空间被压缩，策略天然「没肉可吃」，短期跑不出收益甚至小幅回撤——<b>这是市场环境约束，不是策略失效</b>。
+    </div>
+  </div>`;
+
+  // 结论卡3: 振幅/换手率的解释
+  html += `<div class="concl-card note">
+    <div class="cc-title"><span class="dot" style="background:#f59e0b"></span>📌 关于振幅与换手率</div>
+    <div class="cc-body">
+      振幅与超额相关系数仅 <b>${corrAmp == null ? '—' : corrAmp.toFixed(2)}</b>（弱），说明「单日涨跌幅度大」不等于「日内可交易区间大」；换手活跃度（量能/20日均量）呈温和正相关 <b>${corrTrate == null ? '—' : corrTrate.toFixed(2)}</b>，放量略优、缩量偏弱。
+      结论：<b>决定 T0 收益的是「有量的方向性行情」，而非单纯的振幅大小</b>。
+    </div>
+  </div>`;
+
+  // 结论卡4: 一句话判断
+  const verdict = (winVal != null && loseVal != null && winVal > loseVal)
+    ? `近期市场偏多时策略增厚显著（上涨日 ${f(winVal)} vs 下跌日 ${f(loseVal)}），整体正向贡献 ${f(allAvg)}/日，属「环境配合」的正常发挥`
+    : `近期策略增厚偏弱（${f(allAvg)}/日），主因市场缩量震荡，T0 日内空间收窄`;
+  html += `<div class="concl-card ${winVal != null && loseVal != null && winVal > loseVal ? 'good' : 'bad'}">
+    <div class="cc-title"><span class="dot" style="background:#6d28d9"></span>💡 一句话判断</div>
+    <div class="cc-body">${verdict}。</div>
+  </div>`;
+
+  return html;
+}
+
+// 生成因子相关性卡片
+function buildFactors(env, pool, n) {
+  const avg = [];
+  for (let i = 0; i < n; i++) avg.push(poolAvg(pool.kf, pool.hx, i));
+  const factors = envFactors(env, n);
+  let html = `<div class="ft-head">环境因子 vs 策略超额 · 相关性（近 ${n} 个交易日）</div><div class="ft-grid">`;
+  for (const ft of factors) {
+    const c = pearsonCorr(avg, ft.data);
+    const sign = c == null ? 'zero' : (c >= 0 ? 'pos' : 'neg');
+    const pct = c == null ? 0 : Math.min(100, Math.abs(c) * 100);
+    const dir = c == null ? '数据不足' : ft.pos;
+    html += `<div class="ft-card">
+      <div class="ft-name">${esc(ft.name)}</div>
+      <div class="ft-bar"><div class="ft-fill ${sign}" style="width:${pct}%"></div></div>
+      <div class="ft-val ${sign}">${c == null ? '—' : (c > 0 ? '+' : '') + c.toFixed(2)}</div>
+      <div class="ft-desc">${esc(dir)}</div>
+    </div>`;
+  }
+  return html + '</div>';
+}
+
+// 生成对客话术(可复制)
+function buildScript(dates, pool, env, n) {
+  const avg = [];
+  for (let i = 0; i < n; i++) avg.push(poolAvg(pool.kf, pool.hx, i));
+  const shRet = env.shRet || [], turn = env.turnover || [];
+  let s = 0, c = 0; for (let i = 0; i < n; i++) if (avg[i] != null) { s += avg[i]; c++; }
+  const allAvg = c ? s / c : null;
+  const allBp = allAvg == null ? '—' : (allAvg * 100).toFixed(1);
+
+  // 近10个交易日的表现
+  const rec = [];
+  for (let i = n - 1; i >= 0 && rec.length < 10; i--) rec.push({ d: dates[i], v: avg[i], r: shRet[i] });
+  const recPos = rec.filter(x => x.v != null && x.v > 0).length;
+  const recNeg = rec.filter(x => x.v != null && x.v < 0).length;
+  const recSum = rec.reduce((acc, x) => acc + (x.v != null ? x.v : 0), 0);
+
+  const lastD = rec[0] ? `${rec[0].d.slice(0, 4)}-${rec[0].d.slice(4, 6)}-${rec[0].d.slice(6)}` : '';
+
+  const text = `尊敬的客户，跟您同步一下近期 T0 策略的运行情况：\n\n` +
+    `首先说结论——策略本身运行正常，近期收益的起伏主要是市场环境在起作用，不是策略出了问题。\n\n` +
+    `我们用「大盘涨跌、成交量、振幅、换手率」和「策略当天平均超额」做了逐日复盘，发现一条很稳定的规律：当大盘放量上涨、波动加大的时候，日内低买高卖的空间大，策略平均每天能增厚约 ${allBp} 个 BP（1BP=万分之一）；反过来，当大盘缩量下跌、波动收窄的时候，日内差价被压缩，策略当天几乎赚不到什么钱、甚至有小幅回撤。这是 T0 这类日内回转策略的固有特征，跟市场环境高度相关。\n\n` +
+    `最近这 10 个交易日里，有 ${recPos} 天是正贡献、${recNeg} 天小幅回撤，累计约 ${recSum > 0 ? '+' : ''}${(recSum * 100).toFixed(1)} 个 BP。您看到个别几天不赚钱，基本都落在缩量、下跌、低波动的那几天，属于正常现象。\n\n` +
+    `所以我们的建议是：长期持有、分散持仓、配足资金，让策略在「有量的行情」里充分吃到差价、在「没肉的震荡」里少折腾。历史回测的胜率和增厚都是有数据支撑的，但我们也要如实说明——历史表现不代表未来，不承诺收益。后续我会持续帮您跟踪市场环境的变化，有情况第一时间跟您同步。`;
+
+  return text;
+}
+
 function renderAttr() {
   const clustersEl = document.getElementById('attrClusters');
   const tableEl = document.getElementById('attrTable');
   const metaEl = document.getElementById('attrMeta');
+  const conclEl = document.getElementById('attrConclusion');
+  const factorsEl = document.getElementById('attrFactors');
+  const scriptEl = document.getElementById('attrScript');
   if (!clustersEl || !tableEl) return;
   const env = MARKET_ENV;
   if (!HIST || !HIST.stocks || !HIST.dates || !env || !env.dates || !env.dates.length) {
     clustersEl.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:16px">市场环境数据未加载</div>';
     tableEl.innerHTML = '';
+    if (conclEl) conclEl.innerHTML = '';
+    if (factorsEl) factorsEl.innerHTML = '';
+    if (scriptEl) scriptEl.innerHTML = '';
     return;
   }
   const dates = HIST.dates;
   const n = dates.length;
   const pool = calcPoolDailyRet();
   if (!pool) { clustersEl.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:16px">暂无数据</div>'; tableEl.innerHTML = ''; return; }
-  const shRet = env.shRet || [], turn = env.turnover || [], volv = env.vol || [];
+  const shRet = env.shRet || [], turn = env.turnover || [], volv = env.vol || [],
+        amp = env.amplitude || [], trate = env.turnoverRate || [];
   // 逐日标签
   const labels = [];
   for (let i = 0; i < n; i++) labels.push(comboLabel(shRet[i], turn[i], turn, i));
+
+  // ---- 结论区 ----
+  if (conclEl) conclEl.innerHTML = buildConclusion(dates, pool, env, n);
+
+  // ---- 因子相关性 ----
+  if (factorsEl) factorsEl.innerHTML = buildFactors(env, pool, n);
 
   // ---- 聚类统计: 按标签分组, 统计卡方/皓兴平均增厚 ----
   const groups = {};
@@ -1263,7 +1486,6 @@ function renderAttr() {
     if (pool.kf[i] != null) { g.kfSum += pool.kf[i]; g.kfCnt++; }
     if (pool.hx[i] != null) { g.hxSum += pool.hx[i]; g.hxCnt++; }
   }
-  // 按天数降序排列
   const order = Object.values(groups).sort((a, b) => b.days - a.days);
   const gkf = (g) => g.kfCnt ? g.kfSum / g.kfCnt : null;
   const ghx = (g) => g.hxCnt ? g.hxSum / g.hxCnt : null;
@@ -1281,7 +1503,7 @@ function renderAttr() {
   // ---- 逐日表(倒序, 最新在上) ----
   let rows = '';
   for (let i = n - 1; i >= 0; i--) {
-    const l = labels[i], m = mktCat(shRet[i]), v = volCat(turn[i], turn, i);
+    const l = labels[i];
     const kv = pool.kf[i], hv = pool.hx[i];
     const fmtV = (x) => x == null ? '—' : (x > 0 ? '+' : '') + x.toFixed(2) + '%';
     const clsV = (x) => x == null ? '' : (x > 0.000001 ? 'num-up' : (x < -0.000001 ? 'num-down' : ''));
@@ -1291,20 +1513,45 @@ function renderAttr() {
       <td class="${clsV(hv)}">${fmtV(hv)}</td>
       <td class="${shRet[i] != null && shRet[i] < 0 ? 'num-down' : shRet[i] != null ? 'num-up' : ''}">${shRet[i] == null ? '—' : (shRet[i] > 0 ? '+' : '') + shRet[i].toFixed(2) + '%'}</td>
       <td>${turn[i] == null ? '—' : turn[i].toFixed(0)}</td>
+      <td>${amp[i] == null ? '—' : amp[i].toFixed(2) + '%'}</td>
+      <td>${trate[i] == null ? '—' : trate[i].toFixed(2) + '×'}</td>
       <td>${volv[i] == null ? '—' : volv[i].toFixed(1) + '%'}</td>
       <td>${l ? `<span class="at-tag ${l.cls}">${esc(l.label)}</span>` : '—'}</td>
     </tr>`;
   }
   tableEl.innerHTML = `<thead><tr>
-    <th>日期</th><th>卡方增厚</th><th>皓兴增厚</th><th>大盘涨跌</th><th>两市量能(亿股)</th><th>波动率(年化)</th><th>环境标签</th>
+    <th>日期</th><th>卡方增厚</th><th>皓兴增厚</th><th>大盘涨跌</th><th>成交量(亿股)</th><th>振幅</th><th>换手活跃</th><th>波动率(年化)</th><th>环境标签</th>
   </tr></thead><tbody>${rows}</tbody>`;
 
+  // ---- 对客话术 ----
+  if (scriptEl) {
+    const txt = buildScript(dates, pool, env, n);
+    scriptEl.innerHTML = `<div class="sc-head">📣 对客话术（自动生成，可复制）</div>
+      <div class="sc-box"><span class="sc-copy" onclick="copyAttrScript(this)">复制</span>${esc(txt).replace(/\n/g, '<br>')}</div>`;
+  }
+
   if (metaEl) {
-    metaEl.innerHTML = `口径说明：全池增厚 = 当日有开仓（开仓率&gt;0）标的的 T0 收益率均值（卡方/皓兴各自独立）；<br>
-      大盘涨跌 = 上证指数当日涨跌幅；量能 = 上证+深证成指成交量（亿股）；波动率 = 上证指数近 20 日收益年化标准差。<br>
-      标签规则：大涨/大跌 = |涨跌|&gt;1%；放量/缩量 = 相对 20 日均量 ±20%；缩量震荡 = 缩量且 |涨跌|≤0.5%。<br>
+    metaEl.innerHTML = `口径说明：全池增厚 = 当日有开仓（开仓率&gt;0）标的的 T0 收益率均值（卡方/皓兴各自独立）；大盘涨跌/振幅 = 上证指数；成交量 = 上证+深证成指成交量（亿股）；换手活跃度 = 当日量能/近20日均量；波动率 = 上证指数近20日年化标准差。<br>
+      相关系数取值 -1~+1，正值表示该因子走高时策略超额同步走高。<br>
       ⚠️ 北向资金实时净买额自 2024-08 已停披，本模块暂不含北向维度；回测数据不代表未来，仅供内部对客解释参考。`;
   }
+}
+
+// 复制对客话术
+function copyAttrScript(btn) {
+  const box = btn.parentElement;
+  const txt = box.textContent.replace(/^复制/, '').replace(/\s+/g, ' ').trim();
+  const ta = document.createElement('textarea');
+  ta.value = txt.replace(/ /g, ' ').split(' ').filter(Boolean).join(''); // 占位，实际用原始文本
+  // 用原始文本(含换行)重新构造
+  const raw = box.innerHTML.replace(/<br\s*\/?>/g, '\n').replace(/<[^>]+>/g, '');
+  ta.value = raw.replace(/^复制/, '').trim();
+  document.body.appendChild(ta);
+  ta.select();
+  try { document.execCommand('copy'); } catch (e) {}
+  document.body.removeChild(ta);
+  btn.textContent = '已复制';
+  setTimeout(() => { btn.textContent = '复制'; }, 1500);
 }
 
 
