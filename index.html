@@ -368,7 +368,7 @@
 
     <div class="vcard chart-card" style="margin-top:16px">
       <div class="vhead">
-        📈 过去 60 个工作日 · 授权市值与交易量
+        📈 过去 <span id="perfNDays1">60</span> 个工作日 · 授权市值与交易量
         <span class="chart-legend">
           <span class="ln"><span class="sw" style="background:#2563eb"></span>当日授权市值(亿元,左轴·折线)</span>
           <span class="ln"><span class="sw" style="background:#f59e0b"></span>交易量(亿元,右轴·柱状)</span>
@@ -378,12 +378,12 @@
         <svg id="perfSvg1"></svg>
         <div class="chart-tip" id="perfTip1"></div>
       </div>
-      <div class="chart-meta"><span>数据来源：鑫奕胜 T0 绩效分析表（最近 60 个工作日）</span></div>
+      <div class="chart-meta"><span>数据来源：鑫奕胜 T0 绩效分析表（最近 <span id="perfNDaysM1">60</span> 个工作日）</span></div>
     </div>
 
     <div class="vcard chart-card" style="margin-top:16px">
       <div class="vhead">
-        📈 过去 60 个工作日 · 策略开仓率与平均绩效
+        📈 过去 <span id="perfNDays2">60</span> 个工作日 · 策略开仓率与平均绩效
         <span class="chart-legend">
           <span class="ln"><span class="sw" style="background:#6d28d9"></span>策略开仓率(%,左轴·折线)</span>
           <span class="ln"><span class="sw" style="background:#059669"></span>平均绩效(‰,右轴·柱状,0轴起点)</span>
@@ -393,7 +393,7 @@
         <svg id="perfSvg2"></svg>
         <div class="chart-tip" id="perfTip2"></div>
       </div>
-      <div class="chart-meta"><span>开仓率单位 % · 平均绩效单位 ‰ · 数据来源：鑫奕胜 T0 绩效分析表（最近 60 个工作日）</span></div>
+      <div class="chart-meta"><span>开仓率单位 % · 平均绩效单位 ‰ · 数据来源：鑫奕胜 T0 绩效分析表（最近 <span id="perfNDaysM2">60</span> 个工作日）</span></div>
     </div>
   </section>
 
@@ -1108,6 +1108,12 @@ function renderPerf60() {
     [svg1, svg2].forEach(s => { s.innerHTML = ''; });
     return;
   }
+  // 动态填充实际交易日数(数据源可能不足60个工作日)
+  const n = P.d.length;
+  ['perfNDays1', 'perfNDays2', 'perfNDaysM1', 'perfNDaysM2'].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.textContent = n;
+  });
   renderPerfChart(svg1, document.getElementById('perfTip1'), {
     dates: P.d,
     left:  { name: '授权市值', color: '#2563eb', data: P.mkt, yFmt: v => v.toFixed(1) },
