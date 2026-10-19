@@ -154,6 +154,33 @@
   .wk-metric .wsub { font-size: 11px; color: var(--muted); margin-top: 3px; }
   .weekly-meta { margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.7; background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px 14px; }
 
+  /* 交易日历归因复盘 */
+  .attr-intro { padding: 10px 18px 0; font-size: 12px; color: var(--muted); line-height: 1.7; }
+  .attr-body { padding: 12px 18px 14px; }
+  .attr-clusters { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; margin-bottom: 14px; }
+  .attr-cluster { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .attr-cluster .ac-tag { font-size: 11px; font-weight: 700; padding: 2px 8px; border-radius: 999px; display: inline-block; margin-bottom: 6px; }
+  .attr-cluster .ac-n { font-size: 11px; color: var(--muted); }
+  .attr-cluster .ac-v { font-size: 15px; font-weight: 800; font-family: Consolas, Menlo, monospace; margin-top: 3px; }
+  .attr-cluster .ac-v.kf { color: #6d28d9; }
+  .attr-cluster .ac-v.hx { color: #0369a1; }
+  .attr-table-wrap { overflow-x: auto; }
+  .attr-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
+  .attr-table th { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 600; position: sticky; top: 0; background: var(--card); }
+  .attr-table th:first-child, .attr-table td:first-child { text-align: left; }
+  .attr-table td { padding: 6px 8px; border-bottom: 1px dashed var(--border); text-align: right; font-family: Consolas, Menlo, monospace; }
+  .attr-table td:first-child { font-family: inherit; color: var(--muted); }
+  .attr-table tbody tr:hover { background: var(--primary-light); }
+  .attr-table .at-tag { font-size: 10px; padding: 1px 6px; border-radius: 999px; white-space: nowrap; font-family: inherit; }
+  .at-up { background: #fde8e8; color: #b91c1c; }
+  .at-down { background: #e6f4ea; color: #15803d; }
+  .at-flat { background: #f1f5f9; color: #64748b; }
+  .at-bigup { background: #fee2e2; color: #991b1b; }
+  .at-bigdown { background: #dcfce7; color: #166534; }
+  .at-vol { background: #fef3c7; color: #92400e; }
+  .attr-table .num-up { color: var(--up); }
+  .attr-table .num-down { color: var(--down); }
+
   /* 批量查询 */
   .batch-hint { max-width: 560px; margin: 14px auto 0; text-align: center; font-size: 12px; color: var(--muted); }
   .batch-hint b { color: var(--primary); font-weight: 600; }
@@ -395,6 +422,25 @@
       </div>
       <div class="chart-meta"><span>开仓率单位 % · 平均绩效单位 ‰ · 数据来源：鑫奕胜 T0 绩效分析表（最近 <span id="perfNDaysM2">60</span> 个工作日）</span></div>
     </div>
+
+    <!-- 交易日历归因复盘 -->
+    <div class="vcard chart-card" style="margin-top:16px">
+      <div class="vhead">
+        🗓️ 交易日历归因复盘
+        <span class="chart-legend">
+          <span class="ln"><span class="sw" style="background:#6d28d9"></span>卡方全池增厚</span>
+          <span class="ln"><span class="sw" style="background:#0369a1"></span>皓兴全池增厚</span>
+        </span>
+      </div>
+      <div class="attr-intro">微观逐日复盘：策略在什么市场环境下赚钱、什么时候不灵，用于对客解释「不是策略不行，是环境不适合 T0」。</div>
+      <div class="attr-body">
+        <div class="attr-clusters" id="attrClusters"></div>
+        <div class="attr-table-wrap">
+          <table class="attr-table" id="attrTable"></table>
+        </div>
+      </div>
+      <div class="chart-meta" id="attrMeta"></div>
+    </div>
   </section>
 
   <footer data-page-node-id="n3sxbwjVr24atwWE2Ev6jj">
@@ -407,6 +453,7 @@
 <script src="benchmark.js"></script>
 <script src="industry.js"></script>
 <script src="perf60.js"></script>
+<script src="market_env.js"></script>
 <script>
 // data.js 现为紧凑格式:
 //   { g:"生成时间", kd:"卡方日期", hd:"皓兴日期",
@@ -459,6 +506,7 @@ function decodeHist(raw) {
 let HIST = window.T0_HISTORY ? decodeHist(window.T0_HISTORY) : null;
 const BENCH = window.T0_BENCHMARK || null;
 const IND = window.T0_INDUSTRY || null;
+const MARKET_ENV = window.T0_MARKET_ENV || null;
 
 // ---------- 工具 ----------
 function parsePct(s) { if (s == null) return null; const v = parseFloat(String(s).replace(/[%\s]/g, '')); return isNaN(v) ? null : v; }
@@ -1126,6 +1174,139 @@ function renderPerf60() {
   });
 }
 
+// ================= Tab5 交易日历归因复盘 =================
+// 数据: HIST(策略各标的每日收益) + MARKET_ENV(大盘涨跌/量能/波动率)
+// 目的: 微观逐日复盘, 解释策略何时赚钱/何时不灵 -> "不是策略不行, 是环境不适合 T0"
+// 口径: 全池当日 T0 收益 = 当日有开仓(open>0)标的的 ret 均值; 卡方/皓兴各自独立
+
+// 计算每日全池 T0 收益: 返回 {kf:[...], hx:[...]}, 每项为该日有开仓标的 ret 均值(%, null 表示当日无开仓标的)
+function calcPoolDailyRet() {
+  if (!HIST || !HIST.stocks || !HIST.dates) return null;
+  const n = HIST.dates.length;
+  const kf = new Array(n).fill(null), hx = new Array(n).fill(null);
+  const kfSum = new Array(n).fill(0), kfCnt = new Array(n).fill(0);
+  const hxSum = new Array(n).fill(0), hxCnt = new Array(n).fill(0);
+  for (const [code, rec] of Object.entries(HIST.stocks)) {
+    const kfRet = rec.kf && rec.kf.ret, kfOpen = rec.kf && rec.kf.open;
+    const hxRet = rec.hx && rec.hx.ret, hxOpen = rec.hx && rec.hx.open;
+    for (let i = 0; i < n; i++) {
+      if (kfRet && kfOpen && kfOpen[i] != null && kfOpen[i] > 0 && kfRet[i] != null) { kfSum[i] += kfRet[i]; kfCnt[i]++; }
+      if (hxRet && hxOpen && hxOpen[i] != null && hxOpen[i] > 0 && hxRet[i] != null) { hxSum[i] += hxRet[i]; hxCnt[i]++; }
+    }
+  }
+  for (let i = 0; i < n; i++) {
+    if (kfCnt[i]) kf[i] = kfSum[i] / kfCnt[i];
+    if (hxCnt[i]) hx[i] = hxSum[i] / hxCnt[i];
+  }
+  return { kf, hx };
+}
+
+// 大盘涨跌分类(基于上证涨跌幅 shRet)
+function mktCat(shRet) {
+  if (shRet == null) return null;
+  if (shRet > 1) return { key: 'bigup', label: '大涨', cls: 'at-bigup' };
+  if (shRet > 0) return { key: 'up', label: '上涨', cls: 'at-up' };
+  if (shRet >= -1) return { key: 'down', label: '小跌', cls: 'at-down' };
+  return { key: 'bigdown', label: '大跌', cls: 'at-bigdown' };
+}
+// 量能分类(turnover 相对 20 日均量)
+function volCat(turnover, turnArr, i) {
+  if (turnover == null) return null;
+  let s = 0, n = 0;
+  for (let j = Math.max(0, i - 19); j <= i; j++) { if (turnArr[j] != null) { s += turnArr[j]; n++; } }
+  if (!n) return null;
+  const avg = s / n;
+  if (turnover > avg * 1.2) return { key: 'volup', label: '放量', cls: 'at-vol' };
+  if (turnover < avg * 0.8) return { key: 'voldown', label: '缩量', cls: 'at-flat' };
+  return { key: 'normal', label: '平量', cls: 'at-flat' };
+}
+// 组合标签(用于聚类统计)
+function comboLabel(shRet, turnover, turnArr, i) {
+  const m = mktCat(shRet), v = volCat(turnover, turnArr, i);
+  if (!m) return null;
+  const big = m.key === 'bigup' || m.key === 'bigdown';
+  if (big) return m.key === 'bigup' ? { key: 'bigup', label: '大涨日', cls: 'at-bigup' } : { key: 'bigdown', label: '大跌日', cls: 'at-bigdown' };
+  if (v && v.key === 'volup' && shRet > 0) return { key: 'volup_up', label: '放量上涨日', cls: 'at-vol' };
+  if (v && v.key === 'voldown' && Math.abs(shRet) <= 0.5) return { key: 'voldown_shock', label: '缩量震荡日', cls: 'at-flat' };
+  if (shRet > 0) return { key: 'up', label: '普涨日', cls: 'at-up' };
+  return { key: 'down', label: '普跌日', cls: 'at-down' };
+}
+
+function renderAttr() {
+  const clustersEl = document.getElementById('attrClusters');
+  const tableEl = document.getElementById('attrTable');
+  const metaEl = document.getElementById('attrMeta');
+  if (!clustersEl || !tableEl) return;
+  const env = MARKET_ENV;
+  if (!HIST || !HIST.stocks || !HIST.dates || !env || !env.dates || !env.dates.length) {
+    clustersEl.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:16px">市场环境数据未加载</div>';
+    tableEl.innerHTML = '';
+    return;
+  }
+  const dates = HIST.dates;
+  const n = dates.length;
+  const pool = calcPoolDailyRet();
+  if (!pool) { clustersEl.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:16px">暂无数据</div>'; tableEl.innerHTML = ''; return; }
+  const shRet = env.shRet || [], turn = env.turnover || [], volv = env.vol || [];
+  // 逐日标签
+  const labels = [];
+  for (let i = 0; i < n; i++) labels.push(comboLabel(shRet[i], turn[i], turn, i));
+
+  // ---- 聚类统计: 按标签分组, 统计卡方/皓兴平均增厚 ----
+  const groups = {};
+  for (let i = 0; i < n; i++) {
+    const l = labels[i];
+    if (!l) continue;
+    if (!groups[l.key]) groups[l.key] = { label: l.label, cls: l.cls, kfSum: 0, kfCnt: 0, hxSum: 0, hxCnt: 0, days: 0 };
+    const g = groups[l.key];
+    g.days++;
+    if (pool.kf[i] != null) { g.kfSum += pool.kf[i]; g.kfCnt++; }
+    if (pool.hx[i] != null) { g.hxSum += pool.hx[i]; g.hxCnt++; }
+  }
+  // 按天数降序排列
+  const order = Object.values(groups).sort((a, b) => b.days - a.days);
+  const gkf = (g) => g.kfCnt ? g.kfSum / g.kfCnt : null;
+  const ghx = (g) => g.hxCnt ? g.hxSum / g.hxCnt : null;
+  let clustersHtml = '';
+  for (const g of order) {
+    const kv = gkf(g), hv = ghx(g);
+    clustersHtml += `<div class="attr-cluster">
+      <span class="ac-tag ${g.cls}">${esc(g.label)}</span><span class="ac-n">${g.days} 个交易日</span>
+      <div class="ac-v kf">卡方 ${kv == null ? '—' : (kv > 0 ? '+' : '') + kv.toFixed(2) + '%'}</div>
+      <div class="ac-v hx">皓兴 ${hv == null ? '—' : (hv > 0 ? '+' : '') + hv.toFixed(2) + '%'}</div>
+    </div>`;
+  }
+  clustersEl.innerHTML = clustersHtml || '<div class="no-data" style="grid-column:1/-1;padding:16px">暂无聚类数据</div>';
+
+  // ---- 逐日表(倒序, 最新在上) ----
+  let rows = '';
+  for (let i = n - 1; i >= 0; i--) {
+    const l = labels[i], m = mktCat(shRet[i]), v = volCat(turn[i], turn, i);
+    const kv = pool.kf[i], hv = pool.hx[i];
+    const fmtV = (x) => x == null ? '—' : (x > 0 ? '+' : '') + x.toFixed(2) + '%';
+    const clsV = (x) => x == null ? '' : (x > 0.000001 ? 'num-up' : (x < -0.000001 ? 'num-down' : ''));
+    rows += `<tr>
+      <td>${dates[i].slice(0, 4)}-${dates[i].slice(4, 6)}-${dates[i].slice(6)}</td>
+      <td class="${clsV(kv)}">${fmtV(kv)}</td>
+      <td class="${clsV(hv)}">${fmtV(hv)}</td>
+      <td class="${shRet[i] != null && shRet[i] < 0 ? 'num-down' : shRet[i] != null ? 'num-up' : ''}">${shRet[i] == null ? '—' : (shRet[i] > 0 ? '+' : '') + shRet[i].toFixed(2) + '%'}</td>
+      <td>${turn[i] == null ? '—' : turn[i].toFixed(0)}</td>
+      <td>${volv[i] == null ? '—' : volv[i].toFixed(1) + '%'}</td>
+      <td>${l ? `<span class="at-tag ${l.cls}">${esc(l.label)}</span>` : '—'}</td>
+    </tr>`;
+  }
+  tableEl.innerHTML = `<thead><tr>
+    <th>日期</th><th>卡方增厚</th><th>皓兴增厚</th><th>大盘涨跌</th><th>两市量能(亿股)</th><th>波动率(年化)</th><th>环境标签</th>
+  </tr></thead><tbody>${rows}</tbody>`;
+
+  if (metaEl) {
+    metaEl.innerHTML = `口径说明：全池增厚 = 当日有开仓（开仓率&gt;0）标的的 T0 收益率均值（卡方/皓兴各自独立）；<br>
+      大盘涨跌 = 上证指数当日涨跌幅；量能 = 上证+深证成指成交量（亿股）；波动率 = 上证指数近 20 日收益年化标准差。<br>
+      标签规则：大涨/大跌 = |涨跌|&gt;1%；放量/缩量 = 相对 20 日均量 ±20%；缩量震荡 = 缩量且 |涨跌|≤0.5%。<br>
+      ⚠️ 北向资金实时净买额自 2024-08 已停披，本模块暂不含北向维度；回测数据不代表未来，仅供内部对客解释参考。`;
+  }
+}
+
 
 document.getElementById('dateKf').textContent = DATA.kafang_date || '-';
 document.getElementById('dateHx').textContent = DATA.haoxing_date || '-';
@@ -1144,6 +1325,7 @@ function activateTab(name) {
   } else if (name === 'weekly') {
     renderWeekly();
     renderPerf60();
+    renderAttr();
   }
 }
 document.querySelectorAll('.tab-btn').forEach(btn => {
@@ -1207,7 +1389,7 @@ makeSearch('monInput', 'monDropdown', selectMonStock);
       if (monCode) { renderMonPanel(); renderMonChart(); }
     }
     const wkPane = document.getElementById('tab-weekly');
-    if (wkPane && wkPane.classList.contains('active')) renderWeekly();
+    if (wkPane && wkPane.classList.contains('active')) { renderWeekly(); renderPerf60(); renderAttr(); }
     if (curQueryCode) renderStock(curQueryCode);
   };
   hs.onerror = function () { console.warn('history.js 加载失败'); };
