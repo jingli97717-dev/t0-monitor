@@ -164,22 +164,12 @@
   .attr-cluster .ac-v { font-size: 15px; font-weight: 800; font-family: Consolas, Menlo, monospace; margin-top: 3px; }
   .attr-cluster .ac-v.kf { color: #6d28d9; }
   .attr-cluster .ac-v.hx { color: #0369a1; }
-  .attr-table-wrap { overflow-x: auto; }
-  .attr-table { width: 100%; border-collapse: collapse; font-size: 12px; white-space: nowrap; }
-  .attr-table th { text-align: right; padding: 7px 8px; border-bottom: 1px solid var(--border); color: var(--muted); font-size: 11px; font-weight: 600; position: sticky; top: 0; background: var(--card); }
-  .attr-table th:first-child, .attr-table td:first-child { text-align: left; }
-  .attr-table td { padding: 6px 8px; border-bottom: 1px dashed var(--border); text-align: right; font-family: Consolas, Menlo, monospace; }
-  .attr-table td:first-child { font-family: inherit; color: var(--muted); }
-  .attr-table tbody tr:hover { background: var(--primary-light); }
-  .attr-table .at-tag { font-size: 10px; padding: 1px 6px; border-radius: 999px; white-space: nowrap; font-family: inherit; }
   .at-up { background: #fde8e8; color: #b91c1c; }
   .at-down { background: #e6f4ea; color: #15803d; }
   .at-flat { background: #f1f5f9; color: #64748b; }
   .at-bigup { background: #fee2e2; color: #991b1b; }
   .at-bigdown { background: #dcfce7; color: #166534; }
   .at-vol { background: #fef3c7; color: #92400e; }
-  .attr-table .num-up { color: var(--up); }
-  .attr-table .num-down { color: var(--down); }
 
   /* 环境因子评分区 */
   .attr-score { padding: 14px 18px 4px; }
@@ -526,9 +516,6 @@
 
       <div class="attr-body">
         <div class="attr-clusters" id="attrClusters"></div>
-        <div class="attr-table-wrap">
-          <table class="attr-table" id="attrTable"></table>
-        </div>
       </div>
 
       <!-- 对客话术 -->
@@ -1622,17 +1609,15 @@ function buildScore(env, n) {
 
 function renderAttr() {
   const clustersEl = document.getElementById('attrClusters');
-  const tableEl = document.getElementById('attrTable');
   const metaEl = document.getElementById('attrMeta');
   const conclEl = document.getElementById('attrConclusion');
   const factorsEl = document.getElementById('attrFactors');
   const scriptEl = document.getElementById('attrScript');
   const scoreEl = document.getElementById('attrScore');
-  if (!clustersEl || !tableEl) return;
+  if (!clustersEl) return;
   const env = MARKET_ENV;
   if (!HIST || !HIST.stocks || !HIST.dates || !env || !env.dates || !env.dates.length) {
     clustersEl.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:16px">市场环境数据未加载</div>';
-    tableEl.innerHTML = '';
     if (conclEl) conclEl.innerHTML = '';
     if (factorsEl) factorsEl.innerHTML = '';
     if (scriptEl) scriptEl.innerHTML = '';
@@ -1642,9 +1627,8 @@ function renderAttr() {
   const dates = HIST.dates;
   const n = dates.length;
   const pool = calcPoolDailyRet();
-  if (!pool) { clustersEl.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:16px">暂无数据</div>'; tableEl.innerHTML = ''; return; }
-  const shRet = env.shRet || [], turn = env.turnover || [], volv = env.vol || [],
-        amp = env.amplitude || [], trate = env.turnoverRate || [];
+  if (!pool) { clustersEl.innerHTML = '<div class="no-data" style="grid-column:1/-1;padding:16px">暂无数据</div>'; return; }
+  const shRet = env.shRet || [], turn = env.turnover || [];
   // 逐日标签
   const labels = [];
   for (let i = 0; i < n; i++) labels.push(comboLabel(shRet[i], turn[i], turn, i));
@@ -1682,29 +1666,6 @@ function renderAttr() {
     </div>`;
   }
   clustersEl.innerHTML = clustersHtml || '<div class="no-data" style="grid-column:1/-1;padding:16px">暂无聚类数据</div>';
-
-  // ---- 逐日表(倒序, 最新在上) ----
-  let rows = '';
-  for (let i = n - 1; i >= 0; i--) {
-    const l = labels[i];
-    const kv = pool.kf[i], hv = pool.hx[i];
-    const fmtV = (x) => x == null ? '—' : (x > 0 ? '+' : '') + x.toFixed(2) + '%';
-    const clsV = (x) => x == null ? '' : (x > 0.000001 ? 'num-up' : (x < -0.000001 ? 'num-down' : ''));
-    rows += `<tr>
-      <td>${dates[i].slice(0, 4)}-${dates[i].slice(4, 6)}-${dates[i].slice(6)}</td>
-      <td class="${clsV(kv)}">${fmtV(kv)}</td>
-      <td class="${clsV(hv)}">${fmtV(hv)}</td>
-      <td class="${shRet[i] != null && shRet[i] < 0 ? 'num-down' : shRet[i] != null ? 'num-up' : ''}">${shRet[i] == null ? '—' : (shRet[i] > 0 ? '+' : '') + shRet[i].toFixed(2) + '%'}</td>
-      <td>${turn[i] == null ? '—' : turn[i].toFixed(0)}</td>
-      <td>${amp[i] == null ? '—' : amp[i].toFixed(2) + '%'}</td>
-      <td>${trate[i] == null ? '—' : trate[i].toFixed(2) + '×'}</td>
-      <td>${volv[i] == null ? '—' : volv[i].toFixed(1) + '%'}</td>
-      <td>${l ? `<span class="at-tag ${l.cls}">${esc(l.label)}</span>` : '—'}</td>
-    </tr>`;
-  }
-  tableEl.innerHTML = `<thead><tr>
-    <th>日期</th><th>卡方增厚</th><th>皓兴增厚</th><th>大盘涨跌</th><th>成交量(亿股)</th><th>振幅</th><th>换手活跃</th><th>波动率(年化)</th><th>环境标签</th>
-  </tr></thead><tbody>${rows}</tbody>`;
 
   // ---- 对客话术 ----
   if (scriptEl) {
