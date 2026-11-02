@@ -181,6 +181,48 @@
   .attr-table .num-up { color: var(--up); }
   .attr-table .num-down { color: var(--down); }
 
+  /* 环境因子评分区 */
+  .attr-score { padding: 14px 18px 4px; }
+  .attr-score .sc-head { font-size: 13px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
+  .attr-score .score-main { display: flex; gap: 14px; flex-wrap: wrap; margin-bottom: 12px; }
+  .attr-score .score-gauge { flex: 0 0 auto; display: flex; align-items: center; gap: 16px; background: #f8fafc; border: 1px solid var(--border); border-radius: 12px; padding: 14px 18px; min-width: 220px; }
+  .attr-score .score-ring { position: relative; width: 84px; height: 84px; flex: none; }
+  .attr-score .score-ring svg { transform: rotate(-90deg); }
+  .attr-score .score-ring .ring-num { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; }
+  .attr-score .ring-num .v { font-size: 24px; font-weight: 900; font-family: Consolas, Menlo, monospace; line-height: 1; }
+  .attr-score .ring-num .u { font-size: 10px; color: var(--muted); margin-top: 2px; }
+  .attr-score .score-verdict { flex: 1; min-width: 220px; }
+  .attr-score .score-verdict .vd-tag { display: inline-block; font-size: 13px; font-weight: 800; padding: 3px 12px; border-radius: 999px; margin-bottom: 8px; }
+  .attr-score .score-verdict .vd-tag.fit { background: #ecfdf5; color: #15803d; border: 1px solid #a7f3d0; }
+  .attr-score .score-verdict .vd-tag.watch { background: #fffbeb; color: #b45309; border: 1px solid #fde68a; }
+  .attr-score .score-verdict .vd-tag.avoid { background: #fef2f2; color: #b91c1c; border: 1px solid #fecaca; }
+  .attr-score .score-verdict .vd-date { font-size: 11px; color: var(--muted); margin-bottom: 4px; }
+  .attr-score .score-verdict .vd-txt { font-size: 12.5px; line-height: 1.7; color: #374151; }
+  .attr-score .score-verdict .vd-txt b { color: #111827; }
+  .attr-score .factor-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 10px; margin-bottom: 12px; }
+  .attr-score .factor-card { background: #f8fafc; border: 1px solid var(--border); border-radius: 10px; padding: 10px 12px; }
+  .attr-score .factor-card .fc-top { display: flex; align-items: baseline; justify-content: space-between; margin-bottom: 2px; }
+  .attr-score .factor-card .fc-name { font-size: 11px; color: var(--muted); }
+  .attr-score .factor-card .fc-wt { font-size: 10px; color: #9ca3af; }
+  .attr-score .factor-card .fc-val { font-size: 12px; font-weight: 700; font-family: Consolas, Menlo, monospace; color: #374151; margin-bottom: 6px; }
+  .attr-score .factor-card .fc-bar { height: 6px; border-radius: 999px; background: #eef1f6; overflow: hidden; margin-bottom: 4px; }
+  .attr-score .factor-card .fc-fill { height: 100%; border-radius: 999px; }
+  .attr-score .factor-card .fc-fill.hi { background: #16a34a; }
+  .attr-score .factor-card .fc-fill.mid { background: #f59e0b; }
+  .attr-score .factor-card .fc-fill.lo { background: #dc2626; }
+  .attr-score .factor-card .fc-score { font-size: 15px; font-weight: 900; font-family: Consolas, Menlo, monospace; }
+  .attr-score .factor-card .fc-score.hi { color: #16a34a; }
+  .attr-score .factor-card .fc-score.mid { color: #f59e0b; }
+  .attr-score .factor-card .fc-score.lo { color: #dc2626; }
+  .attr-score .score-trend { display: flex; align-items: flex-end; gap: 6px; height: 56px; padding: 4px 2px 0; }
+  .attr-score .score-trend .tr-col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px; }
+  .attr-score .score-trend .tr-bar { width: 100%; max-width: 44px; border-radius: 4px 4px 0 0; min-height: 3px; }
+  .attr-score .score-trend .tr-bar.fit { background: #16a34a; }
+  .attr-score .score-trend .tr-bar.watch { background: #f59e0b; }
+  .attr-score .score-trend .tr-bar.avoid { background: #dc2626; }
+  .attr-score .score-trend .tr-lb { font-size: 9px; color: var(--muted); }
+  .attr-score .score-meta { font-size: 10.5px; color: #9ca3af; line-height: 1.6; }
+
   /* 归因结论区 */
   .attr-conclusion { padding: 14px 18px 6px; }
   .attr-conclusion .concl-head { font-size: 14px; font-weight: 800; margin-bottom: 10px; display: flex; align-items: center; gap: 8px; }
@@ -472,6 +514,9 @@
         </span>
       </div>
       <div class="attr-intro">基于 <b>大盘成交量、振幅、换手活跃度 + 策略当日平均超额绩效</b> 做逐日归因，回答「策略近期哪些阶段赚钱、什么时候不灵」，并生成对客话术。</div>
+
+      <!-- 环境因子评分：当日打分，判断是否适合推广 -->
+      <div class="attr-score" id="attrScore"></div>
 
       <!-- 结论区：自动推导 -->
       <div class="attr-conclusion" id="attrConclusion"></div>
@@ -1442,6 +1487,139 @@ function buildScript(dates, pool, env, n) {
   return text;
 }
 
+// ===== 环境因子打分：当日 5 因子打分 + 加权综合，判断是否适合推广 =====
+// 单因子打分(0~100)，阈值基于近73交易日实际分布校准
+function scoreShRet(v) {
+  if (v == null) return null;
+  if (v > 1) return 100;          // 大涨
+  if (v > 0) return 75;           // 上涨
+  if (v >= -1) return 40;         // 小跌
+  return 15;                      // 大跌
+}
+function scoreVolume(trate) {     // 成交量用换手活跃度(量能/20日均量)表征放缩量
+  if (trate == null) return null;
+  if (trate > 1.15) return 100;   // 明显放量
+  if (trate > 1.05) return 80;
+  if (trate > 0.95) return 55;    // 平量
+  if (trate > 0.85) return 35;
+  return 15;                      // 明显缩量
+}
+function scoreVol(volv) {         // 波动率(年化%)，越高 T0 空间越大
+  if (volv == null) return null;
+  if (volv > 14.0) return 90;
+  if (volv > 13.0) return 70;
+  if (volv > 12.0) return 55;
+  if (volv > 11.0) return 40;
+  return 20;
+}
+function scoreAmp(amp) {          // 振幅：适中最优(区间够但不过度单边)
+  if (amp == null) return null;
+  if (amp >= 1.0 && amp <= 1.8) return 85;
+  if (amp >= 0.7 && amp < 1.0) return 60;
+  if (amp > 1.8 && amp <= 2.5) return 60;
+  if (amp < 0.7) return 40;       // 太窄没空间
+  return 50;                      // >2.5 单边风险大
+}
+function scoreTrate(trate) {      // 换手活跃度
+  if (trate == null) return null;
+  if (trate > 1.1) return 90;
+  if (trate > 1.0) return 70;
+  if (trate > 0.9) return 50;
+  return 30;
+}
+
+// 因子权重(合计100)：基于与超额的相关性强弱排序
+const SCORE_WEIGHTS = { shRet: 0.30, turn: 0.25, vol: 0.20, amp: 0.10, trate: 0.15 };
+
+// 计算某日的综合得分(0~100)，返回 { total, factors:[{key,name,score,value,unit,weight}], valid }
+function calcDayScore(env, i) {
+  const shRet = env.shRet || [], volv = env.vol || [], amp = env.amplitude || [], trate = env.turnoverRate || [];
+  const s = {
+    shRet: { name: '大盘涨跌', score: scoreShRet(shRet[i]), value: shRet[i], unit: '%', weight: SCORE_WEIGHTS.shRet },
+    turn:  { name: '成交量(换手活跃)', score: scoreVolume(trate[i]), value: trate[i], unit: '×', weight: SCORE_WEIGHTS.turn },
+    vol:   { name: '波动率', score: scoreVol(volv[i]), value: volv[i], unit: '%', weight: SCORE_WEIGHTS.vol },
+    amp:   { name: '振幅', score: scoreAmp(amp[i]), value: amp[i], unit: '%', weight: SCORE_WEIGHTS.amp },
+    trate: { name: '换手活跃度', score: scoreTrate(trate[i]), value: trate[i], unit: '×', weight: SCORE_WEIGHTS.trate },
+  };
+  const factors = Object.values(s);
+  const valid = factors.filter(f => f.score != null);
+  let total = null;
+  if (valid.length === factors.length) {
+    total = factors.reduce((acc, f) => acc + f.score * f.weight, 0);
+    total = Math.round(total);
+  }
+  return { total, factors, valid };
+}
+
+// 综合得分 -> 推广判断
+function scoreVerdict(total) {
+  if (total == null) return { tag: 'watch', key: 'watch', label: '数据不足', txt: '环境数据暂不完整，无法给出可靠判断。' };
+  if (total >= 70) return { tag: 'fit', key: 'fit', label: '适合推广', txt: `当前环境对 T0 策略友好：日内有量、有方向、有波动，策略的「低买高卖」差价空间充足，历史同类环境下超额增厚明显，适合向客户推广。` };
+  if (total >= 50) return { tag: 'watch', key: 'watch', label: '中性观望', txt: `当前环境中性：策略能正常运行、但增厚有限，属于「不亏但也没多少肉」的阶段，建议维持观察、暂不主动大力度推广，等环境转好再发力。` };
+  return { tag: 'avoid', key: 'avoid', label: '暂缓推广', txt: `当前环境不利于 T0 策略：缩量/下跌/低波动导致日内差价被压缩，策略短期难有正贡献、甚至小幅回撤，建议暂缓推广，待市场放量转暖再启动。` };
+}
+
+// 渲染环境因子评分卡片
+function buildScore(env, n) {
+  const dates = env.dates || [];
+  const i = n - 1; // 最新交易日
+  const { total, factors } = calcDayScore(env, i);
+  const vd = scoreVerdict(total);
+  const lastD = dates[i] ? `${dates[i].slice(0, 4)}-${dates[i].slice(4, 6)}-${dates[i].slice(6)}` : '';
+
+  // 环形进度 SVG
+  const r = 36, c = 2 * Math.PI * r;
+  const pct = total == null ? 0 : total / 100;
+  const ringColor = vd.key === 'fit' ? '#16a34a' : (vd.key === 'watch' ? '#f59e0b' : '#dc2626');
+  const ring = `<svg width="84" height="84" viewBox="0 0 84 84">
+    <circle cx="42" cy="42" r="${r}" fill="none" stroke="#eef1f6" stroke-width="8"/>
+    <circle cx="42" cy="42" r="${r}" fill="none" stroke="${ringColor}" stroke-width="8" stroke-linecap="round" stroke-dasharray="${(c * pct).toFixed(1)} ${c.toFixed(1)}"/>
+  </svg>`;
+
+  // 因子卡片
+  let fhtml = '';
+  for (const f of factors) {
+    const sc = f.score;
+    const lvl = sc == null ? 'mid' : (sc >= 70 ? 'hi' : (sc >= 50 ? 'mid' : 'lo'));
+    const valTxt = f.value == null ? '—' : (f.unit === '%' ? (f.value > 0 ? '+' : '') + f.value.toFixed(2) + '%' : f.value.toFixed(2) + '×');
+    fhtml += `<div class="factor-card">
+      <div class="fc-top"><span class="fc-name">${esc(f.name)}</span><span class="fc-wt">权重 ${Math.round(f.weight * 100)}%</span></div>
+      <div class="fc-val">${valTxt}</div>
+      <div class="fc-bar"><div class="fc-fill ${lvl}" style="width:${sc == null ? 0 : sc}%"></div></div>
+      <div class="fc-score ${lvl}">${sc == null ? '—' : sc}</div>
+    </div>`;
+  }
+
+  // 近10日得分走势
+  let trend = '';
+  const start = Math.max(0, n - 10);
+  for (let k = start; k < n; k++) {
+    const r2 = calcDayScore(env, k);
+    const v = r2.total;
+    const key = v == null ? 'watch' : (v >= 70 ? 'fit' : (v >= 50 ? 'watch' : 'avoid'));
+    const h = v == null ? 3 : Math.max(3, Math.round(v * 0.52));
+    trend += `<div class="tr-col"><div class="tr-bar ${key}" style="height:${h}px" title="${dates[k]}: ${v == null ? '—' : v}分"></div><div class="tr-lb">${dates[k].slice(4, 6)}/${dates[k].slice(6)}</div></div>`;
+  }
+
+  return `<div class="sc-head">🌤️ 环境因子评分 · 是否适合推广（最新交易日 ${lastD}）</div>
+    <div class="score-main">
+      <div class="score-gauge">
+        <div class="score-ring">${ring}<div class="ring-num"><span class="v">${total == null ? '—' : total}</span><span class="u">综合分/100</span></div></div>
+        <div class="score-verdict">
+          <div><span class="vd-tag ${vd.tag}">${esc(vd.label)}</span></div>
+          <div class="vd-date">综合得分 ${total == null ? '—' : total} 分 · 数据截至 ${lastD}</div>
+          <div class="vd-txt">${vd.txt}</div>
+        </div>
+      </div>
+      <div class="score-verdict" style="flex:0 0 auto;min-width:0">
+        <div style="font-size:11px;color:var(--muted);margin-bottom:4px">近 10 个交易日综合得分走势</div>
+        <div class="score-trend">${trend}</div>
+      </div>
+    </div>
+    <div class="factor-grid">${fhtml}</div>
+    <div class="score-meta">打分口径：五个环境因子各按当日数值打分（0~100），按相关性权重加权汇总为综合得分（大盘涨跌 30% · 成交量 25% · 波动率 20% · 振幅 10% · 换手活跃度 15%）。综合 ≥70 适合推广、50~70 中性观望、&lt;50 暂缓推广。打分仅基于市场环境，不代表策略收益承诺。</div>`;
+}
+
 function renderAttr() {
   const clustersEl = document.getElementById('attrClusters');
   const tableEl = document.getElementById('attrTable');
@@ -1449,6 +1627,7 @@ function renderAttr() {
   const conclEl = document.getElementById('attrConclusion');
   const factorsEl = document.getElementById('attrFactors');
   const scriptEl = document.getElementById('attrScript');
+  const scoreEl = document.getElementById('attrScore');
   if (!clustersEl || !tableEl) return;
   const env = MARKET_ENV;
   if (!HIST || !HIST.stocks || !HIST.dates || !env || !env.dates || !env.dates.length) {
@@ -1457,6 +1636,7 @@ function renderAttr() {
     if (conclEl) conclEl.innerHTML = '';
     if (factorsEl) factorsEl.innerHTML = '';
     if (scriptEl) scriptEl.innerHTML = '';
+    if (scoreEl) scoreEl.innerHTML = '';
     return;
   }
   const dates = HIST.dates;
@@ -1468,6 +1648,9 @@ function renderAttr() {
   // 逐日标签
   const labels = [];
   for (let i = 0; i < n; i++) labels.push(comboLabel(shRet[i], turn[i], turn, i));
+
+  // ---- 环境因子评分 ----
+  if (scoreEl) scoreEl.innerHTML = buildScore(env, n);
 
   // ---- 结论区 ----
   if (conclEl) conclEl.innerHTML = buildConclusion(dates, pool, env, n);
