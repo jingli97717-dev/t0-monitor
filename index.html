@@ -111,6 +111,45 @@
   .attr-note.good { background: #ecfdf5; border-color: #a7f3d0; }
   .attr-note.bad { background: #fef2f2; border-color: #fecaca; }
 
+  /* 标的适配度评分卡 */
+  .fit-card { background: var(--card); border: 1px solid var(--border); border-radius: var(--radius); overflow: hidden; margin-top: 16px; }
+  .fit-head { display: flex; align-items: center; gap: 8px; padding: 12px 18px; border-bottom: 1px solid var(--border); font-weight: 700; font-size: 15px; }
+  .fit-head .hint { font-size: 11px; font-weight: 400; color: var(--muted); margin-left: auto; }
+  .fit-pair { display: grid; grid-template-columns: 1fr 1fr; gap: 0; }
+  @media (max-width: 680px) { .fit-pair { grid-template-columns: 1fr; } }
+  .fit-col { padding: 16px 18px; border-top: 1px solid var(--border); }
+  .fit-pair > .fit-col:first-child { border-right: 1px solid var(--border); }
+  @media (max-width: 680px) { .fit-pair > .fit-col:first-child { border-right: none; border-bottom: 1px solid var(--border); } }
+  .fit-vendor { display: flex; align-items: center; gap: 8px; margin-bottom: 12px; }
+  .fit-vendor .nm { font-weight: 700; font-size: 14px; }
+  .fit-grade { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+  .fit-grade.g1 { background: #dcfce7; color: #15803d; }
+  .fit-grade.g2 { background: #e0f2fe; color: #0369a1; }
+  .fit-grade.g3 { background: #fef3c7; color: #b45309; }
+  .fit-grade.g4 { background: #fee2e2; color: #b91c1c; }
+  .fit-score-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 14px; }
+  .fit-score { font-size: 34px; font-weight: 800; font-family: Consolas, Menlo, monospace; line-height: 1; }
+  .fit-score-sub { font-size: 12px; color: var(--muted); }
+  .fit-dims { display: flex; flex-direction: column; gap: 9px; }
+  .fit-dim { position: relative; }
+  .fit-dim-head { display: flex; justify-content: space-between; align-items: center; font-size: 12px; margin-bottom: 3px; }
+  .fit-dim-head .dl { color: var(--muted); }
+  .fit-dim-head .dv { font-family: Consolas, Menlo, monospace; font-weight: 600; }
+  .fit-bar { height: 7px; background: #eef1f6; border-radius: 999px; overflow: hidden; }
+  .fit-bar > i { display: block; height: 100%; border-radius: 999px; transition: width .3s; }
+  .fit-bar.good > i { background: #16a34a; }
+  .fit-bar.mid > i { background: #f59e0b; }
+  .fit-bar.bad > i { background: #dc2626; }
+  .fit-reasons { margin-top: 12px; font-size: 12px; line-height: 1.7; }
+  .fit-reason { display: flex; gap: 6px; padding: 3px 0; }
+  .fit-reason .rt { color: #b45309; flex: none; }
+  .fit-reason .rt.ok { color: #15803d; }
+  .fit-reason .rt.bad { color: #b91c1c; }
+  .fit-explain { margin-top: 12px; font-size: 12px; color: var(--muted); line-height: 1.7; background: var(--primary-light); border: 1px solid #dbeafe; border-radius: 8px; padding: 8px 12px; }
+  .fit-dim:hover .fit-dim-head { color: var(--text); }
+  .fit-tip { position: absolute; left: 0; right: 0; top: calc(100% + 4px); z-index: 30; background: #1f2937; color: #fff; font-size: 11px; line-height: 1.5; padding: 6px 10px; border-radius: 8px; box-shadow: 0 4px 16px rgba(0,0,0,.18); display: none; white-space: normal; }
+  .fit-dim:hover .fit-tip { display: block; }
+
   /* 金股池 */
   .gold-row { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px dashed var(--border); cursor: pointer; font-size: 13px; transition: background .12s; }
   .gold-row:hover { background: var(--primary-light); }
@@ -763,6 +802,139 @@ function renderHist(code) {
   });
 }
 
+// ================= 标的适配度评分 =================
+// 基于历史日频数据(近一个月), 对皓兴/卡方分别打分, 输出四档等级
+// 三维度: 历史开仓胜率(35%) · 收益稳定性(35%) · 回撤(30%)
+function _fitClean(arr) { return (arr || []).filter(v => v != null && !isNaN(v)); }
+function _fitMean(arr) { const a = _fitClean(arr); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
+function _fitStd(arr) { const a = _fitClean(arr); if (a.length < 2) return 0; const m = _fitMean(a); const v = a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1); return Math.sqrt(v); }
+// 最大回撤(累计净值口径, 百分比)
+function _fitMaxDD(arr) {
+  const a = _fitClean(arr); if (a.length < 2) return 0;
+  let f = 1, peak = 1, mdd = 0;
+  for (const r of a) { f *= (1 + r / 100); if (f > peak) peak = f; const dd = (peak - f) / peak; if (dd > mdd) mdd = dd; }
+  return mdd * 100;
+}
+// 单维度 -> 0~100 分
+function _fitScoreWin(winPct, openDays) {
+  // 胜率: 55% 满分起步, 逐档; 开仓天数太少(<8天)样本不足打折
+  if (winPct == null) return { s: null, why: null };
+  let s;
+  if (winPct >= 60) s = 100; else if (winPct >= 55) s = 85; else if (winPct >= 50) s = 65;
+  else if (winPct >= 45) s = 45; else if (winPct >= 40) s = 28; else s = 12;
+  let why = null;
+  if (openDays != null && openDays < 8) { s = Math.min(s, 45); why = '开仓天数不足，胜率样本有限'; }
+  if (winPct < 45) why = (why ? why + '；' : '') + '近期连续亏损、胜率偏低';
+  return { s, why };
+}
+function _fitScoreStab(mean, std) {
+  // 稳定性: 用 均值/标准差 的夏普式指标 + 均值正负
+  if (mean == null) return { s: null, why: null };
+  const sharpe = std > 0 ? mean / std : (mean > 0 ? 3 : 0);
+  let s;
+  if (mean <= 0) { s = sharpe >= 0 ? 20 : 10; }
+  else { if (sharpe >= 1.2) s = 100; else if (sharpe >= 0.8) s = 85; else if (sharpe >= 0.5) s = 68; else if (sharpe >= 0.25) s = 48; else s = 30; }
+  let why = null;
+  if (mean <= 0) why = '日平均收益为负，日内空间不足';
+  else if (std > 0 && std > Math.abs(mean) * 3) why = '收益波动大、稳定性差';
+  return { s, why };
+}
+function _fitScoreDD(mdd, mean) {
+  if (mdd == null) return { s: null, why: null };
+  let s;
+  if (mdd <= 1) s = 100; else if (mdd <= 2) s = 85; else if (mdd <= 3) s = 70; else if (mdd <= 5) s = 48; else if (mdd <= 8) s = 28; else s = 12;
+  let why = null;
+  if (mdd > 5) why = '历史最大回撤偏大';
+  return { s, why };
+}
+// 综合评分(0~100) + 等级
+function _fitGrade(total) {
+  if (total == null) return { g: null, label: '数据不足', cls: 'g2' };
+  if (total >= 75) return { g: 1, label: '优先推荐', cls: 'g1' };
+  if (total >= 60) return { g: 2, label: '适合观察', cls: 'g2' };
+  if (total >= 45) return { g: 3, label: '谨慎上仓', cls: 'g3' };
+  return { g: 4, label: '不适合 T0', cls: 'g4' };
+}
+// 对一个算法商的日频数据打分
+function fitVendor(vendor, code, name, extraWin) {
+  const rec = HIST && HIST.stocks[code];
+  if (!rec || !rec[vendor]) return null;
+  const d = rec[vendor];
+  const ret = d.ret, win = d.win, open = d.open;
+  const n = _fitClean(ret).length;
+  if (n < 3) return null;
+  // 有效交易判定: 有非零收益的天数(防止"无交易被误判低回撤高稳定")
+  const traded = _fitClean(ret).filter(v => Math.abs(v) > 0.000001).length;
+  const openArr = _fitClean(open);
+  let openDays = openArr.length ? openArr.filter(v => v > 0).length : null;
+  // 开仓天数极少 -> 样本不足, 直接不适合
+  if (openDays != null && openDays < 3) {
+    return { vendor, name, mean: null, std: null, mdd: null, winPct: null, openDays, traded,
+      scWin: { s: 10, why: '近20日开仓天数极少，几乎没有 T0 交易样本' },
+      scStab: { s: 10, why: '有效交易日不足，无法评估收益稳定性' },
+      scDD: { s: 40, why: '交易样本不足' }, total: 15, g: 4, label: '不适合 T0', cls: 'g4' };
+  }
+  const mean = _fitMean(ret), std = _fitStd(ret), mdd = _fitMaxDD(ret);
+  // 胜率: 优先用 data.js 里的"开仓胜率"字段(皓兴 year-to-date 口径更准), 否则用历史 win 序列均值
+  let winPct = extraWin;
+  if (winPct == null) { const winArr = _fitClean(win); winPct = winArr.length ? _fitMean(winArr) : null; }
+  const scWin = _fitScoreWin(winPct, openDays);
+  const scStab = _fitScoreStab(mean, std);
+  const scDD = _fitScoreDD(mdd, mean);
+  // 加权(缺失维度按剩余权重归一)
+  let total = null, wsum = 0;
+  const parts = [[scWin.s, 0.35], [scStab.s, 0.35], [scDD.s, 0.30]];
+  for (const [s, w] of parts) if (s != null) { total = (total || 0) + s * w; wsum += w; }
+  if (wsum > 0) total = Math.round(total / wsum);
+  const gr = _fitGrade(total);
+  return { vendor, name, mean, std, mdd, winPct, openDays, traded, scWin, scStab, scDD, total, ...gr };
+}
+function fitBlock(code, s) {
+  if (!HIST || !HIST.stocks[code]) return '';
+  const hasKf = s.kafang && Object.keys(s.kafang).length;
+  const hasHx = s.haoxing && Object.keys(s.haoxing).length;
+  const hxWin = (s.haoxing && parsePct(s.haoxing['开仓胜率'])) || null;
+  const kf = hasKf ? fitVendor('kf', code, s.name, null) : null;
+  const hx = hasHx ? fitVendor('hx', code, s.name, hxWin) : null;
+  if (!kf && !hx) return '';
+  const col = (f) => {
+    if (!f) return `<div class="fit-col"><div class="no-data" style="padding:20px 0">该算法商暂无足够历史数据</div></div>`;
+    const dims = [
+      { k: '历史开仓胜率', v: f.winPct, disp: f.winPct == null ? '—' : f.winPct.toFixed(1) + '%', s: f.scWin.s, tip: f.scWin.why || '近20日开仓胜率表现' },
+      { k: '收益稳定性', v: f.mean, disp: (f.mean == null ? '—' : (f.mean > 0 ? '+' : '') + f.mean.toFixed(3) + '%/日'), s: f.scStab.s, tip: f.scStab.why || '日平均收益稳定、波动可控' },
+      { k: '回撤控制', v: f.mdd, disp: f.mdd == null ? '—' : '-' + f.mdd.toFixed(2) + '%', s: f.scDD.s, tip: f.scDD.why || '区间最大回撤较小' },
+    ];
+    const reasons = [];
+    if (f.scWin.why) reasons.push({ t: f.scWin.why, ok: false });
+    if (f.scStab.why) reasons.push({ t: f.scStab.why, ok: false });
+    if (f.scDD.why) reasons.push({ t: f.scDD.why, ok: false });
+    if (!reasons.length) reasons.push({ t: '各维度表现均衡，无明显扣分项', ok: true });
+    const vtag = f.vendor === 'kf' ? '<span class="tag tag-kf">卡方</span>' : '<span class="tag tag-hx">皓兴</span>';
+    return `<div class="fit-col">
+      <div class="fit-vendor">${vtag}<span class="nm">${esc(f.name || '')}</span></div>
+      <div class="fit-score-row"><span class="fit-score" style="color:${f.total >= 75 ? '#16a34a' : f.total >= 60 ? '#2563eb' : f.total >= 45 ? '#d97706' : '#dc2626'}">${f.total == null ? '—' : f.total}</span>
+        <span class="fit-score-sub">综合适配分<br>/ 100</span>
+        <span class="fit-grade ${f.cls}">${esc(f.label)}</span></div>
+      <div class="fit-dims">
+        ${dims.map(d => {
+          const barCls = d.s == null ? 'mid' : d.s >= 70 ? 'good' : d.s >= 45 ? 'mid' : 'bad';
+          const w = d.s == null ? 0 : d.s;
+          return `<div class="fit-dim">
+            <div class="fit-dim-head"><span class="dl">${d.k}</span><span class="dv">${d.disp}</span></div>
+            <div class="fit-bar ${barCls}"><i style="width:${w}%"></i></div>
+            <div class="fit-tip">${esc(d.tip || '')}</div>
+          </div>`;
+        }).join('')}
+      </div>
+      <div class="fit-reasons">${reasons.map(r => `<div class="fit-reason"><span class="rt ${r.ok ? 'ok' : 'bad'}">${r.ok ? '✓' : '✕'}</span><span>${esc(r.t)}</span></div>`).join('')}</div>
+    </div>`;
+  };
+  return `<div class="fit-card"><div class="fit-head">🎯 标的适配度评分 <span class="hint">悬浮维度查看扣分原因 · 基于近一个月日频回测</span></div>
+    <div class="fit-pair">${col(kf)}${col(hx)}</div>
+    <div class="fit-explain"><b>怎么读：</b>综合分越高越适合作为 T0 底仓。判断口径：<b>≥75 优先推荐 · 60~74 适合观察 · 45~59 谨慎上仓 · &lt;45 不适合 T0</b>。三个维度分别衡量「能不能稳定开仓赚到钱（胜率）、赚得稳不稳（稳定性）、扛不扛得住波动（回撤）」。不同标的横向对比时，优先推荐高分者。</div>
+  </div>`;
+}
+
 let curQueryCode = null;
 function renderStock(code) {
   curQueryCode = code;
@@ -780,6 +952,7 @@ function renderStock(code) {
     el.innerHTML = `
       <div class="stock-head"><span class="name">${esc(s.name || '')}</span><span class="code">${esc(code)}</span>
         <span class="dates">卡方: <b>${esc(DATA.kafang_date || '-')}</b><br>皓兴: <b>${esc(DATA.haoxing_date || '-')}</b></span></div>
+      ${fitBlock(code, s)}
       ${histBlock(code)}
       <div class="vcard" style="margin-top:16px"><div class="vhead">⚖️ 两家共有指标对比</div><div class="vbody">${compareRows(s) || '<div class="no-data">两家暂无共同指标数据</div>'}</div></div>
       <div class="vendors">
