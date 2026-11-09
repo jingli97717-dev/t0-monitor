@@ -804,7 +804,7 @@ function renderHist(code) {
 
 // ================= 标的适配度评分 =================
 // 基于历史日频数据(近一个月), 对皓兴/卡方分别打分, 输出四档等级
-// 三维度: 历史开仓胜率(35%) · 收益稳定性(35%) · 回撤(30%)
+// 四维度: 近20日超额收益率(25%) · 历史开仓胜率(30%) · 收益稳定性(25%) · 回撤(20%)
 function _fitClean(arr) { return (arr || []).filter(v => v != null && !isNaN(v)); }
 function _fitMean(arr) { const a = _fitClean(arr); return a.length ? a.reduce((x, y) => x + y, 0) / a.length : null; }
 function _fitStd(arr) { const a = _fitClean(arr); if (a.length < 2) return 0; const m = _fitMean(a); const v = a.reduce((s, x) => s + (x - m) * (x - m), 0) / (a.length - 1); return Math.sqrt(v); }
@@ -847,6 +847,29 @@ function _fitScoreDD(mdd, mean) {
   if (mdd > 5) why = '历史最大回撤偏大';
   return { s, why };
 }
+// 近20日超额收益率(=T0增厚复利累计) 打分, 单位%
+function _fitScoreExcess(excess) {
+  if (excess == null) return { s: null, why: null };
+  let s;
+  if (excess >= 3) s = 100; else if (excess >= 2) s = 90; else if (excess >= 1) s = 78;
+  else if (excess >= 0.5) s = 64; else if (excess >= 0) s = 46; else if (excess >= -1) s = 30; else s = 12;
+  let why = null;
+  if (excess < -1) why = '近20日 T0 增厚明显为负，日内持续亏损';
+  else if (excess < 0) why = '近20日 T0 增厚为负，几乎没有正贡献';
+  else if (excess < 0.5) why = '近20日 T0 增厚偏薄，日内空间不足';
+  return { s, why };
+}
+// 近20日超额收益率: 票近20日 T0 增厚累计收益(复利累乘, 相对未做T0基准), 单位%
+function _fitExcess20(code, vendor) {
+  const rec = HIST && HIST.stocks[code];
+  if (!rec || !rec[vendor]) return null;
+  const ret = _fitClean(rec[vendor].ret);
+  if (ret.length < 3) return null;
+  const last20 = ret.slice(-20);
+  let f = 1, any = false;
+  for (const r of last20) { if (r == null) continue; any = true; f *= (1 + r / 100); }
+  return any ? (f - 1) * 100 : null;
+}
 // 综合评分(0~100) + 等级
 function _fitGrade(total) {
   if (total == null) return { g: null, label: '数据不足', cls: 'g2' };
@@ -869,7 +892,8 @@ function fitVendor(vendor, code, name, extraWin) {
   let openDays = openArr.length ? openArr.filter(v => v > 0).length : null;
   // 开仓天数极少 -> 样本不足, 直接不适合
   if (openDays != null && openDays < 3) {
-    return { vendor, name, mean: null, std: null, mdd: null, winPct: null, openDays, traded,
+    return { vendor, name, mean: null, std: null, mdd: null, winPct: null, openDays, traded, excess: null,
+      scExc: { s: 10, why: '近20日开仓天数极少，几乎无 T0 交易样本' },
       scWin: { s: 10, why: '近20日开仓天数极少，几乎没有 T0 交易样本' },
       scStab: { s: 10, why: '有效交易日不足，无法评估收益稳定性' },
       scDD: { s: 40, why: '交易样本不足' }, total: 15, g: 4, label: '不适合 T0', cls: 'g4' };
@@ -881,13 +905,16 @@ function fitVendor(vendor, code, name, extraWin) {
   const scWin = _fitScoreWin(winPct, openDays);
   const scStab = _fitScoreStab(mean, std);
   const scDD = _fitScoreDD(mdd, mean);
+  // 近20日超额收益率: 票近20日累计收益 - 沪深300同期涨跌
+  const excess = _fitExcess20(code, vendor);
+  const scExc = _fitScoreExcess(excess);
   // 加权(缺失维度按剩余权重归一)
   let total = null, wsum = 0;
-  const parts = [[scWin.s, 0.35], [scStab.s, 0.35], [scDD.s, 0.30]];
+  const parts = [[scExc.s, 0.25], [scWin.s, 0.30], [scStab.s, 0.25], [scDD.s, 0.20]];
   for (const [s, w] of parts) if (s != null) { total = (total || 0) + s * w; wsum += w; }
   if (wsum > 0) total = Math.round(total / wsum);
   const gr = _fitGrade(total);
-  return { vendor, name, mean, std, mdd, winPct, openDays, traded, scWin, scStab, scDD, total, ...gr };
+  return { vendor, name, mean, std, mdd, winPct, openDays, traded, excess, scExc, scWin, scStab, scDD, total, ...gr };
 }
 function fitBlock(code, s) {
   if (!HIST || !HIST.stocks[code]) return '';
@@ -900,11 +927,13 @@ function fitBlock(code, s) {
   const col = (f) => {
     if (!f) return `<div class="fit-col"><div class="no-data" style="padding:20px 0">该算法商暂无足够历史数据</div></div>`;
     const dims = [
+      { k: '近20日超额收益', v: f.excess, disp: f.excess == null ? '—' : (f.excess > 0 ? '+' : '') + f.excess.toFixed(2) + '%', s: f.scExc.s, tip: f.scExc.why || '近20日 T0 增厚可观' },
       { k: '历史开仓胜率', v: f.winPct, disp: f.winPct == null ? '—' : f.winPct.toFixed(1) + '%', s: f.scWin.s, tip: f.scWin.why || '近20日开仓胜率表现' },
       { k: '收益稳定性', v: f.mean, disp: (f.mean == null ? '—' : (f.mean > 0 ? '+' : '') + f.mean.toFixed(3) + '%/日'), s: f.scStab.s, tip: f.scStab.why || '日平均收益稳定、波动可控' },
       { k: '回撤控制', v: f.mdd, disp: f.mdd == null ? '—' : '-' + f.mdd.toFixed(2) + '%', s: f.scDD.s, tip: f.scDD.why || '区间最大回撤较小' },
     ];
     const reasons = [];
+    if (f.scExc.why) reasons.push({ t: f.scExc.why, ok: false });
     if (f.scWin.why) reasons.push({ t: f.scWin.why, ok: false });
     if (f.scStab.why) reasons.push({ t: f.scStab.why, ok: false });
     if (f.scDD.why) reasons.push({ t: f.scDD.why, ok: false });
@@ -931,7 +960,7 @@ function fitBlock(code, s) {
   };
   return `<div class="fit-card"><div class="fit-head">🎯 标的适配度评分 <span class="hint">悬浮维度查看扣分原因 · 基于近一个月日频回测</span></div>
     <div class="fit-pair">${col(kf)}${col(hx)}</div>
-    <div class="fit-explain"><b>怎么读：</b>综合分越高越适合作为 T0 底仓。判断口径：<b>≥75 优先推荐 · 60~74 适合观察 · 45~59 谨慎上仓 · &lt;45 不适合 T0</b>。三个维度分别衡量「能不能稳定开仓赚到钱（胜率）、赚得稳不稳（稳定性）、扛不扛得住波动（回撤）」。不同标的横向对比时，优先推荐高分者。</div>
+    <div class="fit-explain"><b>怎么读：</b>综合分越高越适合作为 T0 底仓。判断口径：<b>≥75 优先推荐 · 60~74 适合观察 · 45~59 谨慎上仓 · &lt;45 不适合 T0</b>。四个维度分别衡量「近20日有没有跑赢大盘（超额收益）、能不能稳定开仓赚到钱（胜率）、赚得稳不稳（稳定性）、扛不扛得住波动（回撤）」。不同标的横向对比时，优先推荐高分者。</div>
   </div>`;
 }
 
